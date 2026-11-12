@@ -69,6 +69,13 @@ func Main(args []string) {
 	refresh := flag.Duration("refresh", 12*time.Hour, "how often to re-fetch domain and IP blocklists (0 disables)")
 	checkCSV := flag.String("check", "", "comma-separated domains or IPs: report whether the configured lists block each one and which lists include it, then exit (no steering)")
 	flag.Parse(args)
+	var upstreams []string
+	for _, u := range []string{*upstream1, *upstream2} {
+		if u != "" {
+			upstreams = append(upstreams, withDNSPort(u))
+		}
+	}
+	useUpstreamWhenNoNameservers("/etc/resolv.conf", upstreams)
 
 	// The DNS redirect requires the resolver to be listening on port 53.
 	dnsOn53 := false
