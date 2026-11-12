@@ -1,0 +1,73 @@
+# Apptainer definition file for fltr. `ramekin build` builds it for the
+# device's platform (ramekin.yaml).
+
+# Build stage: runs on the workstation's architecture and cross-compiles for
+# the device ({{ TARGETARCH }}) with zig as the C compiler, so nothing runs
+# under emulation. nDPI is C, so fltr is a cgo binary, linked fully static.
+Bootstrap: docker
+From: cgr.dev/chainguard/wolfi-base:latest
+Stage: build
+
+%files
+    go.mod /src/
+    go.sum /src/
+    *.go /src/
+    cmd /src/
+    internal /src/
+    scripts /src/
+    test /src/
+
+%post
+    set -eu
+    # pkgconf-dev holds pkg.m4, which nDPI's configure.ac needs; binutils
+    # provides the ld that libtool's configure looks for (zig does the linking).
+    apk add --no-cache go zig bash curl make autoconf automake libtool pkgconf pkgconf-dev binutils
+    go version
+    zig version
+
+    # /cache persists between builds: nDPI is built once per architecture
+    # and version, and Go and zig rebuilds take seconds.
+    export GOMODCACHE=/cache/go/mod GOCACHE=/cache/go/build
+    export ZIG_GLOBAL_CACHE_DIR=/cache/zig ZIG_LOCAL_CACHE_DIR=/cache/zig
+    export NDPI_VERSION=6.0 NDPI_DIR=/cache/ndpi-6.0
+    case {{ TARGETARCH }} in
+        amd64) target=x86_64-linux-musl ;;
+        arm64) target=aarch64-linux-musl ;;
+        *) echo "unsupported architecture {{ TARGETARCH }}" >&2; exit 1 ;;
+    esac
+    if [ ! -f "$NDPI_DIR/{{ TARGETARCH }}/lib/libndpi.a" ]; then
+        /src/scripts/build-ndpi.sh {{ TARGETARCH }}
+    fi
+    mkdir -p /src/third_party
+    ln -sfn "$NDPI_DIR" /src/third_party/ndpi
+
+    cd /src
+    CGO_ENABLED=1 GOOS=linux GOARCH={{ TARGETARCH }} CC="zig cc -target $target" \
+        go build -trimpath -ldflags '-s -w -linkmode=external "-extldflags=-static -s"' -o /fltr .
+
+# Final stage: what runs on the device. fltr is a single static binary; the
+# base image provides CA certificates for gk-network's blocklist downloads.
+Bootstrap: docker
+From: cgr.dev/chainguard/wolfi-base:latest
+Stage: final
+
+%files from build
+    /fltr /usr/bin/fltr
+
+%files
+    rules.txt /etc/fltr/rules.txt
+    labels.txt /etc/fltr/labels.txt
+
+%post
+    # Chainguard's base image pins its packages, so unpin them and upgrade:
+    # this installs Wolfi's latest security fixes even before the base image
+    # is rebuilt with them.
+    sed -i 's/[=<>~].*//' /etc/apk/world
+    apk upgrade --no-cache
+
+%runscript
+    # ramekind runs this on the device. State lives in /data, which survives
+    # updates and rollbacks. Per-device flags and rules come from the
+    # FLTR_ARGS and FLTR_RULES environment variables (`ramekin device set
+    # <device> --env ...`); see README.md.
+    exec /usr/bin/fltr -rules=/etc/fltr/rules.txt -labels=/etc/fltr/labels.txt -state=/data/state.json -block-log=/data/blocks.jsonl -api-dir=/data/api -log-pairing=always "$@"

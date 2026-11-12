@@ -1,0 +1,4 @@
+# fleet key (keys/fleet.agekey)
+age1jzewygzx00mghdctvdu3uwmekw24xyeuy9z65k3cd3m6ld0v0gdqh2e5vu
+# device fltr (claimed)
+age1q3gu8sm52q3qneg5vdgk5gzf0cv09900pqsn0xtf858vgxy2y96sprqg92

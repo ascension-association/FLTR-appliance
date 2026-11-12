@@ -1,0 +1,13 @@
+# Rules for every device running this image (/etc/fltr/rules.txt).
+#
+# <ip|mac|ja4> <value> [user=NAME] [allow=DURATION]
+#
+# The first rule that matches a source applies, so put specific rules (single
+# devices) before broad ones (subnets). Rules from the companion app and from
+# a device's FLTR_RULES are checked before these. For example:
+#
+# mac aa:bb:cc:dd:ee:01 user=alice allow=2h   # Alice's phone
+# ip  192.168.1.23      user=alice            # Alice's laptop: shares her 2h
+# mac aa:bb:cc:dd:ee:02 user=bob   allow=1h   # Bob's tablet
+# ip  192.168.1.0/28                          # kids' VLAN: always blocked
+# ja4 t13d1516h2_8daaf6152771_*               # a smart TV app: always blocked

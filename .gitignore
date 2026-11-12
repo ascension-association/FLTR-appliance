@@ -31,3 +31,17 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Ramekin
+/build/
+/.ramekin/
+# Secret keys. Public keys (*.pub, recipients.txt) are safe to commit, and
+# the CVE watch workflow needs ramekin-sign.pub to verify releases.
+/keys/*.key
+/keys/*.agekey
+/keys/devices/
+/overlay.img
+
+# Local builds (make): binaries and the nDPI library from scripts/build-ndpi.sh
+/bin/
+/third_party/ndpi/

@@ -1,0 +1,12 @@
+# Names for client software by JA4 fingerprint (/etc/fltr/labels.txt).
+# Labels only name software in the logs and block log; they don't change
+# what gets blocked.
+#
+# <ja4 pattern> <label>; the first match applies. For example:
+#
+# q13d0313h3_55b375c5d22e_*  Chrome (QUIC)
+# t13d1516h2_8daaf6152771_*  Chrome (TCP)
+# *_55b375c5d22e_*           Chromium-family
+#
+# Add fingerprints from a capture with:
+#   bin/fltr-amd64 inspect -labels labels.txt -learn "Kids' tablet YouTube app" capture.pcap
