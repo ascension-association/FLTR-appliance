@@ -1,5 +1,5 @@
 // Package netinfo reads this host's default routes from /proc, for both
-// gk-fltr (which interfaces are uplinks) and gk-network (which router to
+// fltr (which interfaces are uplinks) and network protection (which router to
 // steer traffic to).
 package netinfo
 

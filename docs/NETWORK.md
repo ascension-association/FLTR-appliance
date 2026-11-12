@@ -1,12 +1,10 @@
-## gk-network
+## Network protection
 
-Basic network safety for gokrazy. Uses targeted ARP steering to block malware and enforce family-friendly DNS.
-
-gk-network is part of [FLTR](../../README.md), built into the same binary and Ramekin image. It steers the LAN's traffic through the Ramekin device, and FLTR then applies its YouTube rules and time limits to that traffic. See [Running with gk-network](../../README.md#running-with-gk-network).
+FLTR's network protection steers a LAN's traffic through the Ramekin device with targeted ARP, blocks malware, and enforces family-friendly DNS. FLTR then applies its YouTube rules and time limits to the steered traffic. See [Network protection](../README.md#network-protection) in the README for when it starts and how it works with filtering.
 
 ### Usage
 
-FLTR starts gk-network for you, as `fltr network`, on a one-interface box next to the router, so there is nothing extra to install. Pass its flags through FLTR's `-network-args`, for example in a device's `FLTR_ARGS`:
+FLTR starts network protection for you, as `fltr network`, on a one-interface box next to the router, so there is nothing extra to install. Pass its options through FLTR's `-network-args`, for example in a device's `FLTR_ARGS`:
 
 ```sh
 ramekin device set fltr --env 'FLTR_ARGS="-network-args=-targets=192.168.1.50,192.168.1.51 -refresh=6h"' --apply
@@ -14,20 +12,18 @@ ramekin device set fltr --env 'FLTR_ARGS="-network-args=-targets=192.168.1.50,19
 
 `-network=on` starts it even where FLTR doesn't detect a one-interface box, and `-network=off` turns it off.
 
-Before steering, gk-network turns on IP forwarding and turns off ICMP redirects on its interface (`send_redirects`, for the interface and for `all`). Steered traffic leaves through the interface it arrived on, so the kernel would otherwise tell devices to send it straight to the router, past the filtering. gk-network refuses to steer if either setting doesn't take effect.
-
-gk-network is pure Go. This directory also builds it as a standalone program, for running without FLTR: `make bin/gk-network-arm64` (or `-amd64`) in the repository root.
+Before steering, network protection turns on IP forwarding and turns off ICMP redirects on its interface (`send_redirects`, for the interface and for `all`). Steered traffic leaves through the interface it arrived on, so the kernel would otherwise tell devices to send it straight to the router, past the filtering. It refuses to steer if either setting doesn't take effect.
 
 ### Example
 
 ```
-# wait a few minutes after FLTR starts gk-network, then from a steered client:
+# wait a few minutes after FLTR starts network protection, then from a steered client:
 nslookup bad-example.com
 ```
 
 ### Options
 
-Run `fltr network -help` (or `gk-network -help`) to list all flags and their defaults.
+Run `fltr network -help` to list all options and their defaults.
 
 - `-i`        LAN interface (default `eth0`)
 - `-gw`       user-defined IP or `auto` to use the current router's default gateway (default `auto`)

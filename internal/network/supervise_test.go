@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// The test binary doubles as a stand-in gk-network: with GKN_SOCKET set,
+// The test binary doubles as a stand-in network protection: with GKN_SOCKET set,
 // it holds that control socket, logs "hello", and runs until told to stop.
 // It records each start in GKN_STARTS, and with GKN_CRASH_FIRST, its first
 // run exits with status 1 shortly after starting.
@@ -67,7 +67,7 @@ func newHarness(t *testing.T, env ...string) *harness {
 	socketSeq++
 	h := &harness{
 		t:      t,
-		socket: fmt.Sprintf("gk-network-test-%d-%d", os.Getpid(), socketSeq),
+		socket: fmt.Sprintf("fltr-network-test-%d-%d", os.Getpid(), socketSeq),
 		starts: filepath.Join(t.TempDir(), "starts"),
 		seen:   make(chan struct{}, 100),
 	}
@@ -148,11 +148,11 @@ func (h *harness) socketGone() bool {
 func TestSuperviseStartAndStop(t *testing.T) {
 	h := newHarness(t)
 	stop := h.run()
-	h.waitLog("gk-network: hello 1")
+	h.waitLog("network: hello 1")
 	stop()
 	h.waitLog("asked to stop")
 	if !h.socketGone() {
-		t.Error("gk-network still running after stop")
+		t.Error("network protection still running after stop")
 	}
 	if n := h.startCount(); n != 1 {
 		t.Errorf("started %d times, want 1", n)
@@ -161,7 +161,7 @@ func TestSuperviseStartAndStop(t *testing.T) {
 
 func TestSuperviseAttachesToRunning(t *testing.T) {
 	h := newHarness(t)
-	// A gk-network left running by a gk-fltr that crashed.
+	// A network protection left running by a fltr that crashed.
 	orphan := h.command()
 	if err := orphan.Start(); err != nil {
 		t.Fatal(err)
@@ -172,14 +172,14 @@ func TestSuperviseAttachesToRunning(t *testing.T) {
 			break
 		}
 		if i > 200 {
-			t.Fatal("stand-in gk-network did not start")
+			t.Fatal("stand-in network protection did not start")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
 	stop := h.run()
 	h.waitLog("already running; attached")
-	h.waitLog("gk-network: hello 1") // logged before anyone attached
+	h.waitLog("network: hello 1") // logged before anyone attached
 	stop()
 	if err := orphan.Wait(); err != nil {
 		t.Errorf("orphan exit: %v", err)
@@ -192,17 +192,17 @@ func TestSuperviseAttachesToRunning(t *testing.T) {
 func TestSuperviseRestartsAfterExit(t *testing.T) {
 	h := newHarness(t, "GKN_CRASH_FIRST=1")
 	stop := h.run()
-	h.waitLog("gk-network: hello 1")
-	h.waitLog("gk-network exited (exit status 1); restarting")
-	h.waitLog("gk-network: hello 2")
+	h.waitLog("network: hello 1")
+	h.waitLog("network protection exited (exit status 1); restarting")
+	h.waitLog("network: hello 2")
 	stop()
 	if !h.socketGone() {
-		t.Error("gk-network still running after stop")
+		t.Error("network protection still running after stop")
 	}
 }
 
 func TestControl(t *testing.T) {
-	name := fmt.Sprintf("gk-network-test-%d-control", os.Getpid())
+	name := fmt.Sprintf("fltr-network-test-%d-control", os.Getpid())
 	c, err := Listen(name)
 	if err != nil {
 		t.Fatal(err)

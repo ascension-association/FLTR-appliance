@@ -12,7 +12,6 @@ Stage: build
     go.mod /src/
     go.sum /src/
     *.go /src/
-    cmd /src/
     internal /src/
     scripts /src/
     test /src/
@@ -46,7 +45,7 @@ Stage: build
         go build -trimpath -ldflags '-s -w -linkmode=external "-extldflags=-static -s"' -o /fltr .
 
 # Final stage: what runs on the device. fltr is a single static binary; the
-# base image provides CA certificates for gk-network's blocklist downloads.
+# base image provides CA certificates for network protection's blocklist downloads.
 Bootstrap: docker
 From: cgr.dev/chainguard/wolfi-base:latest
 Stage: final

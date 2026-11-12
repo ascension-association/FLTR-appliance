@@ -68,7 +68,7 @@ func TestHomeListenerClosesOutsiders(t *testing.T) {
 	}
 }
 
-// With gk-network, gk-fltr runs on a one-armed box: its only interface
+// With network protection, fltr runs on a one-armed box: its only interface
 // carries the default route (to the real router) and is the home LAN.
 func TestHomeNetOneArmed(t *testing.T) {
 	p := netip.MustParsePrefix

@@ -13,12 +13,12 @@ import (
 )
 
 // oneArmedCheck is how long the box must keep looking like it sits next
-// to the router before -network=auto starts gk-network. A router can look
+// to the router before -network=auto starts network protection. A router can look
 // like that briefly at boot, before its LAN interface has an address, and
-// gk-network there would steer the uplink's network.
+// network protection there would steer the uplink's network.
 const oneArmedCheck = 15 * time.Second
 
-// superviseNetwork runs gk-network until ctx ends. With auto, it first
+// superviseNetwork runs network protection until ctx ends. With auto, it first
 // waits until this box is a one-interface box next to the router, and
 // steers that interface unless args name one.
 func superviseNetwork(ctx context.Context, auto bool, args []string) {
@@ -33,10 +33,10 @@ func superviseNetwork(ctx context.Context, auto bool, args []string) {
 	}
 	exe, err := os.Executable()
 	if err != nil {
-		log.Printf("gk-network: %v", err)
+		log.Printf("network: %v", err)
 		return
 	}
-	log.Printf("starting gk-network %s", strings.Join(args, " "))
+	log.Printf("starting network protection %s", strings.Join(args, " "))
 	s := network.Supervisor{
 		Socket: network.SocketName,
 		Command: func() *exec.Cmd {
@@ -63,7 +63,7 @@ func waitOneArmed(ctx context.Context) (string, bool) {
 		default:
 			prev = ""
 			if !logged {
-				log.Printf("gk-network not started: this box doesn't look like a one-interface box next to the router (-network=on starts it anyway)")
+				log.Printf("network protection not started: this box doesn't look like a one-interface box next to the router (-network=on starts it anyway)")
 				logged = true
 			}
 		}

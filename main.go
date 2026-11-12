@@ -1,7 +1,7 @@
 // fltr blocks YouTube (or other nDPI-detected protocols) for sources matching
 // an IP address, MAC address or JA4 fingerprint. It runs as a Ramekin app
 // on a gokrazy device, either on the router or on a one-interface box next to
-// it (with gk-network steering the LAN's traffic through it). It is a port of
+// it (with its network protection steering the LAN's traffic through it). It is a port of
 // gk-fltr.
 //
 // The first packets of every forwarded connection are handed to userspace,
@@ -17,7 +17,7 @@
 //	fltr protocols [QUERY...]    search the protocols nDPI can detect
 //	fltr pair [flags]            show the app pairing QR code
 //	fltr health                  exit 0 once filtering (Ramekin health check)
-//	fltr network [flags]         run gk-network (normally started by fltr)
+//	fltr network [flags]         run network protection (normally started by fltr)
 package main
 
 import (
@@ -288,8 +288,8 @@ func run(args []string) error {
 		apiAddrs     listFlag
 		apiDir       = fs.String("api-dir", defaultAPIDir, "where the app API keeps its token, TLS certificate and settings.json")
 		apiURL       = fs.String("api-url", "", "URL the app uses to reach the API, for the pairing QR code (default: from the first -api address)")
-		networkMode  = fs.String("network", "auto", "run gk-network (ARP steering, safe-search DNS): auto (only on a one-interface box next to the router), on or off")
-		networkArgs  = fs.String("network-args", "", "flags for gk-network, space-separated, e.g. \"-targets=192.168.1.50,192.168.1.51 -ech\"")
+		networkMode  = fs.String("network", "auto", "run network protection (ARP steering, safe-search DNS): auto (only on a one-interface box next to the router), on or off")
+		networkArgs  = fs.String("network-args", "", "options for network protection, space-separated, e.g. \"-targets=192.168.1.50,192.168.1.51 -ech\"")
 		readyFile    = fs.String("ready-file", defaultReadyFile, "file written once filtering has started, which fltr health checks")
 		unpair       = fs.String("unpair", "", "unpair every app once per distinct value (e.g. a date) by replacing the API token; later starts with the same value keep the token")
 		logPairing   = fs.String("log-pairing", "new", "when to log the app pairing QR code: new (when the token is created), always (at every start) or never")

@@ -1,7 +1,7 @@
-// Package network is gk-network, a gokrazy appliance that enforces
+// Package network is FLTR's network protection, which enforces
 // parental-control network rules on your own LAN without replacing your
-// existing router. It runs as its own program (cmd/gk-network) or as
-// "gk-fltr network", started by gk-fltr (see Supervisor).
+// existing router. It runs as "fltr network", started by fltr (see
+// Supervisor).
 //
 // It keeps your router as the DHCP server and gateway, and uses targeted ARP
 // steering to pull selected client devices' traffic through this host, which
@@ -15,7 +15,7 @@
 //
 // Usage:
 //
-//	gk-network -i eth0 -gw 192.168.1.1 -targets 192.168.1.50,192.168.1.51
+//	fltr network -i eth0 -gw 192.168.1.1 -targets 192.168.1.50,192.168.1.51
 package network
 
 import (
@@ -39,11 +39,11 @@ import (
 	"github.com/ascension-association/FLTR/internal/steer"
 )
 
-// Main runs gk-network with the given command-line arguments. It exits the
+// Main runs network protection with the given command-line arguments. It exits the
 // process on fatal errors.
 func Main(args []string) {
-	flag := flag.NewFlagSet("gk-network", flag.ExitOnError)
-	supervised := flag.Bool("supervised", false, "started by gk-fltr: log to the control socket instead of stderr")
+	flag := flag.NewFlagSet("fltr network", flag.ExitOnError)
+	supervised := flag.Bool("supervised", false, "started by fltr: log to the control socket instead of stderr")
 	iface := flag.String("i", "eth0", "LAN interface")
 	gw := flag.String("gw", "auto", `existing gateway/router IP, or "auto" to detect the default route`)
 	targetsCSV := flag.String("targets", "all", `comma-separated client IPs to manage, or "all" to steer every LAN host, including ones that join later`)
@@ -223,11 +223,11 @@ func Main(args []string) {
 		return
 	}
 
-	// Only one gk-network may steer the LAN. The control socket enforces that
-	// and lets gk-fltr stop this one and read its log.
+	// Only one network protection process may steer the LAN. The control socket enforces that
+	// and lets fltr stop this one and read its log.
 	ctl, err := Listen(SocketName)
 	if errors.Is(err, ErrRunning) {
-		log.Print("gk-network is already running")
+		log.Print("network protection is already running")
 		os.Exit(ExitRunning)
 	}
 	if err != nil {
@@ -235,7 +235,7 @@ func Main(args []string) {
 	}
 	if *supervised {
 		log.SetOutput(ctl)
-		// Let gk-fltr attach first, so it sees errors from startup.
+		// Let fltr attach first, so it sees errors from startup.
 		select {
 		case <-ctl.Attached():
 		case <-time.After(5 * time.Second):
@@ -338,7 +338,7 @@ func Main(args []string) {
 	var blocker *filter.IPBlocker
 	if needNFT {
 		var err error
-		blocker, err = filter.NewIPBlocker("gknetwork")
+		blocker, err = filter.NewIPBlocker("fltr_network")
 		if err != nil {
 			log.Fatalf("nft block: %v", err)
 		}

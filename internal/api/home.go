@@ -15,10 +15,10 @@ import (
 // ISP router, the uplink's network is private too.
 //
 // A host whose only addressed interfaces are uplinks sits on the home LAN
-// itself, as with gk-network steering traffic through a one-armed box, so
-// then the uplinks' subnets are home.
+// itself, as with network protection steering traffic through a one-armed
+// box, so then the uplinks' subnets are home.
 //
-// Interfaces change (DHCP, interfaces coming up after gk-fltr), so the view
+// Interfaces change (DHCP, interfaces coming up after fltr), so the view
 // is refreshed every few seconds.
 type HomeNet struct {
 	// Interfaces and DefaultRoutes default to the host's; tests replace them.

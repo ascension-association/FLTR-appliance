@@ -20,12 +20,15 @@ const (
 	protoUDP = 17
 )
 
+// legacyTableName is the table's name in releases before 0.2.0.
+const legacyTableName = "gknetwork"
+
 // IPBlocker manages nftables named sets of blocked destination IPs and a drop
 // rule on the forward path. The sets are named (blocked_v4 / blocked_v6) so you
 // can inspect or update them live from the shell, e.g.:
 //
-//	nft list set inet gknetwork blocked_v4
-//	nft add element inet gknetwork blocked_v4 { 203.0.113.5 }
+//	nft list set inet fltr_network blocked_v4
+//	nft add element inet fltr_network blocked_v4 { 203.0.113.5 }
 //
 // Because the drop rule lives in the forward hook, it only affects traffic
 // routed through this appliance — i.e. the clients it steers.
@@ -61,7 +64,7 @@ func ivalKey(start, end []byte) string { return string(start) + "\x00" + string(
 // then flushes them to the kernel. Requires CAP_NET_ADMIN.
 func NewIPBlocker(tableName string) (*IPBlocker, error) {
 	if tableName == "" {
-		tableName = "gknetwork"
+		tableName = "fltr_network"
 	}
 	c, err := nftables.New()
 	if err != nil {
@@ -79,6 +82,13 @@ func NewIPBlocker(tableName string) (*IPBlocker, error) {
 	// when the table does not exist yet.
 	c.DelTable(&nftables.Table{Family: nftables.TableFamilyINet, Name: tableName})
 	_ = c.Flush()
+	// Also remove the table under its name before the rename to
+	// fltr_network, so a device upgraded from an older release doesn't keep
+	// its stale rules.
+	if tableName != legacyTableName {
+		c.DelTable(&nftables.Table{Family: nftables.TableFamilyINet, Name: legacyTableName})
+		_ = c.Flush()
+	}
 
 	b.table = c.AddTable(&nftables.Table{Family: nftables.TableFamilyINet, Name: tableName})
 

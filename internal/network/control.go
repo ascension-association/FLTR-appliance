@@ -10,25 +10,25 @@ import (
 	"time"
 )
 
-// SocketName is the abstract Unix socket gk-network listens on.
-const SocketName = "gk-network"
+// SocketName is the abstract Unix socket network protection listens on.
+const SocketName = "fltr-network"
 
-// ExitRunning is gk-network's exit status when another instance holds the
+// ExitRunning is network protection's exit status when another instance holds the
 // control socket.
 const ExitRunning = 3
 
-// ErrRunning means another gk-network holds the control socket.
-var ErrRunning = errors.New("gk-network is already running")
+// ErrRunning means another network protection process holds the control socket.
+var ErrRunning = errors.New("network protection is already running")
 
 // maxPending bounds the log lines kept while no one is attached.
 const maxPending = 500
 
-// Control is gk-network's control socket. Holding it ensures a single
+// Control is network protection's control socket. Holding it ensures a single
 // instance. A client sends one line:
 //
 //	logs   receive log lines (those held while no one was attached, then new
 //	       ones) until the connection closes; a new "logs" client replaces it
-//	stop   stop gk-network; answered with "ok"
+//	stop   stop network protection; answered with "ok"
 //
 // Only processes of the same user may connect. Control is also an
 // io.Writer for the log package.
@@ -58,7 +58,7 @@ func Listen(name string) (*Control, error) {
 	return c, nil
 }
 
-// Stopping is closed when a client asks gk-network to stop.
+// Stopping is closed when a client asks network protection to stop.
 func (c *Control) Stopping() <-chan struct{} { return c.stopping }
 
 // Attached is closed when a log client first attaches.
@@ -76,7 +76,7 @@ func (c *Control) Close() error {
 }
 
 // Write sends one log line to the attached client, or holds it until one
-// attaches. It never fails, so logging never blocks gk-network.
+// attaches. It never fails, so logging never blocks network protection.
 func (c *Control) Write(p []byte) (int, error) {
 	line := append([]byte(nil), p...)
 	c.mu.Lock()

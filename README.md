@@ -357,7 +357,7 @@ countries.
   separated by spaces. Quote it inside `FLTR_ARGS`, e.g.
   `FLTR_ARGS="-network-args=-targets=192.168.1.50,192.168.1.51 -ech"`. In
   auto mode, FLTR adds `-i` with the detected interface unless you give
-  one. [The options](cmd/gk-network/README.md) cover targets, safe-search
+  one. [The options](docs/NETWORK.md) cover targets, safe-search
   DNS, blocklists and allowlists, and VPN, encrypted DNS, ECH and country
   blocking.
 - **A separate process.** Network protection runs as `fltr network`, in its

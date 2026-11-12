@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-// Supervisor keeps one gk-network running for gk-fltr.
+// Supervisor keeps one network protection process running for fltr.
 //
-// It starts gk-network in its own session, so a gk-fltr crash doesn't take
-// it down: gk-network keeps steering and filtering, and the restarted
-// gk-fltr finds it through the control socket and attaches to it instead of
-// starting another. gk-network's log lines are passed to Logf. When the
-// context ends (gk-fltr is stopped on purpose), gk-network is asked to stop
-// and restore the clients' ARP caches.
+// It starts network protection in its own session, so where a fltr crash
+// doesn't end the session (outside a container), network protection keeps
+// steering and filtering, and the restarted fltr finds it through the control
+// socket and attaches to it instead of starting another. Its log lines are
+// passed to Logf. When the context ends (fltr is stopped on purpose), network
+// protection is asked to stop and restore the clients' ARP caches.
 type Supervisor struct {
 	Socket  string                           // control socket name
-	Command func() *exec.Cmd                 // runs gk-network with -supervised
-	Logf    func(format string, args ...any) // gk-fltr's log
-	// Backoff is the first wait before restarting gk-network after it
+	Command func() *exec.Cmd                 // runs network protection with -supervised
+	Logf    func(format string, args ...any) // fltr's log
+	// Backoff is the first wait before restarting network protection after it
 	// exits; it doubles, up to five minutes, while it keeps exiting quickly.
 	Backoff time.Duration
 }
@@ -33,7 +33,7 @@ const (
 	stopWait    = 15 * time.Second
 )
 
-// Run supervises gk-network until ctx ends, then stops it.
+// Run supervises network protection until ctx ends, then stops it.
 func (s *Supervisor) Run(ctx context.Context) {
 	backoff := s.Backoff
 	for {
@@ -46,7 +46,7 @@ func (s *Supervisor) Run(ctx context.Context) {
 			return
 		}
 		if err != nil {
-			s.Logf("gk-network: %v; retrying in %s", err, backoff)
+			s.Logf("network: %v; retrying in %s", err, backoff)
 			if !sleep(ctx, backoff) {
 				return
 			}
@@ -60,7 +60,7 @@ func (s *Supervisor) Run(ctx context.Context) {
 			defer close(ended)
 			sc := bufio.NewScanner(conn)
 			for sc.Scan() {
-				s.Logf("gk-network: %s", sc.Text())
+				s.Logf("network: %s", sc.Text())
 			}
 		}()
 		select {
@@ -73,7 +73,7 @@ func (s *Supervisor) Run(ctx context.Context) {
 			if time.Since(started) > time.Minute {
 				backoff = s.Backoff
 			}
-			s.Logf("gk-network %s; restarting in %s", how, backoff)
+			s.Logf("network protection %s; restarting in %s", how, backoff)
 			if !sleep(ctx, backoff) {
 				return
 			}
@@ -87,12 +87,12 @@ func (s *Supervisor) Run(ctx context.Context) {
 	}
 }
 
-// connect attaches to a running gk-network, starting one if there is none.
-// exited reports when the gk-network we started ends; it is nil when we
+// connect attaches to a running network protection, starting one if there is none.
+// exited reports when the network protection we started ends; it is nil when we
 // attached to one already running.
 func (s *Supervisor) connect(ctx context.Context) (conn *net.UnixConn, exited chan error, err error) {
 	if conn, err := s.subscribe(); err == nil {
-		s.Logf("gk-network already running; attached to it")
+		s.Logf("network protection already running; attached to it")
 		return conn, nil, nil
 	}
 	cmd := s.Command()
@@ -112,7 +112,7 @@ func (s *Supervisor) connect(ctx context.Context) (conn *net.UnixConn, exited ch
 		case err := <-exited:
 			var ee *exec.ExitError
 			if errors.As(err, &ee) && ee.ExitCode() == ExitRunning {
-				return nil, nil, errors.New("another gk-network holds the control socket")
+				return nil, nil, errors.New("another network protection process holds the control socket")
 			}
 			return nil, nil, errors.New("exited at startup: " + exitStatus(err))
 		case <-ctx.Done():
@@ -143,7 +143,7 @@ func (s *Supervisor) subscribe() (*net.UnixConn, error) {
 	return conn, nil
 }
 
-// stop asks gk-network to stop and waits for it, if we started it (exited
+// stop asks network protection to stop and waits for it, if we started it (exited
 // is not nil), or until its control socket closes.
 func (s *Supervisor) stop(exited chan error) {
 	conn, err := Dial(s.Socket)
@@ -157,7 +157,7 @@ func (s *Supervisor) stop(exited chan error) {
 	conn.SetDeadline(time.Now().Add(stopWait))
 	conn.Write([]byte("stop\n"))
 	bufio.NewReader(conn).ReadString('\n')
-	s.Logf("gk-network: asked to stop")
+	s.Logf("network: asked to stop")
 	if exited == nil {
 		// Not our child: wait for its socket to go away.
 		deadline := time.Now().Add(stopWait)
@@ -174,7 +174,7 @@ func (s *Supervisor) stop(exited chan error) {
 	select {
 	case <-exited:
 	case <-time.After(stopWait):
-		s.Logf("gk-network did not stop within %s", stopWait)
+		s.Logf("network protection did not stop within %s", stopWait)
 	}
 }
 
