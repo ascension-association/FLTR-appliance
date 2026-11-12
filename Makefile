@@ -3,7 +3,8 @@
 # does all of this inside its build stage.
 #
 #   make ndpi            build third_party/ndpi/<arch>/lib/libndpi.a
-#   make                 build bin/fltr-{amd64,arm64} and bin/gk-network-{amd64,arm64}
+#   make                 build bin/fltr-{amd64,arm64}
+#   make bin/gk-network-arm64   build the network protection program on its own
 #   make test            run the tests (amd64 host)
 #
 # fltr is fully static, with zig as the C (cross) compiler for nDPI;
@@ -15,7 +16,7 @@ LDFLAGS    = -s -w -linkmode=external "-extldflags=-static -s"
 
 .PHONY: all ndpi test clean $(ARCHS:%=bin/fltr-%) $(ARCHS:%=bin/gk-network-%)
 
-all: $(ARCHS:%=bin/fltr-%) $(ARCHS:%=bin/gk-network-%)
+all: $(ARCHS:%=bin/fltr-%)
 
 ndpi:
 	scripts/build-ndpi.sh $(ARCHS)

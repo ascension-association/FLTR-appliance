@@ -20,11 +20,11 @@ Sources can also get a **daily allowance**, for example 2 hours of YouTube per
 day, measured in active minutes and shared by a user's devices. See
 [Daily allowances](#daily-allowances).
 
-FLTR also includes **gk-network**, for safe-search DNS and malware, VPN and
-country blocking. On a box with one network interface next to your existing
-router, gk-network steers the LAN's traffic through the box, so FLTR can
+FLTR also provides **network protection**: safe-search DNS and malware, VPN
+and country blocking. On a box with one network interface next to your
+existing router, it steers the LAN's traffic through the box, so FLTR can
 filter it without replacing the router. See
-[Running with gk-network](#running-with-gk-network).
+[Network protection](#network-protection).
 
 ## Quick start
 
@@ -337,40 +337,42 @@ of it, even though that network is private too. Without the token, nobody on
 the home network can use the API either. [docs/API.md](docs/API.md)
 describes pairing, certificate pinning and the endpoints.
 
-## Running with gk-network
+## Network protection
 
 FLTR can run on the router. More often, a Ramekin device is a box with one
-network interface next to the existing router. There, gk-network uses ARP to
-steer the LAN's traffic through the box, which forwards it to the router.
-FLTR filters that forwarded traffic as it would on a router. gk-network is
-built into the same binary and image; no second app is needed.
+network interface next to the existing router. There, FLTR's network
+protection uses ARP to steer the LAN's traffic through the box, which
+forwards it to the router, and FLTR filters that forwarded traffic as it
+would on a router. Network protection also answers the LAN's DNS with
+safe search and blocklists, and blocks malware, VPNs, encrypted DNS and some
+countries.
 
 - **When it starts.** With `-network=auto` (the default), FLTR starts
-  gk-network once the box has had one routable interface, with the default
-  gateway, on two checks 15 seconds apart. On a router, gk-network never
+  network protection once the box has had one routable interface, with the
+  default gateway, on two checks 15 seconds apart. On a router, it never
   starts. A router can look like a one-interface box briefly at boot, and
-  gk-network there would steer the uplink's network instead of the LAN.
+  steering there would redirect the uplink's network instead of the LAN.
   `-network=on` starts it regardless, and `-network=off` never does.
-- **Settings.** `-network-args` passes flags to gk-network, separated by
-  spaces. Quote it inside `FLTR_ARGS`, e.g.
+- **Settings.** `-network-args` passes options to network protection,
+  separated by spaces. Quote it inside `FLTR_ARGS`, e.g.
   `FLTR_ARGS="-network-args=-targets=192.168.1.50,192.168.1.51 -ech"`. In
   auto mode, FLTR adds `-i` with the detected interface unless you give
-  one. [cmd/gk-network/README.md](cmd/gk-network/README.md) lists its flags:
-  targets, safe-search DNS, blocklists and allowlists, and VPN, encrypted DNS,
-  ECH and country blocking.
-- **A separate process.** gk-network runs as `fltr network`, in its own
-  process. If gk-network exits, FLTR restarts it after 10 seconds, waiting
-  longer each time up to 5 minutes. Stopping FLTR on purpose (SIGTERM) stops
-  gk-network too, which restores the clients' ARP caches first.
-  gk-network's log lines appear in FLTR's log, prefixed `gk-network:`.
+  one. [The options](cmd/gk-network/README.md) cover targets, safe-search
+  DNS, blocklists and allowlists, and VPN, encrypted DNS, ECH and country
+  blocking.
+- **A separate process.** Network protection runs as `fltr network`, in its
+  own process. If it exits, FLTR restarts it after 10 seconds, waiting longer
+  each time up to 5 minutes. Stopping FLTR on purpose (SIGTERM) stops it
+  too, which restores the clients' ARP caches first. Its log lines appear in
+  FLTR's log with a prefix.
 
-The two work together:
+Filtering and network protection work together:
 
 - **Separate nftables tables.** FLTR's forward chain (priority -10) runs
-  before gk-network's (priority 0). A connection must pass both.
-- **They strengthen each other.** gk-network blocks Encrypted Client Hello,
-  which would hide the host name FLTR needs, and blocks VPNs and encrypted
-  DNS that could get around it.
+  before network protection's (priority 0). A connection must pass both.
+- **They strengthen each other.** Network protection blocks Encrypted Client
+  Hello, which would hide the host name FLTR needs, and blocks VPNs and
+  encrypted DNS that could get around it.
 - **The app API still works.** On a box whose only interface carries the
   default route, that interface's subnet counts as the home network.
 - **Only steered devices are filtered.** Traffic that doesn't pass through
@@ -492,8 +494,8 @@ Pass flags through `FLTR_ARGS` (or the `%runscript` in `fltr.def`).
 | `-api-url` | | URL for the app in the pairing QR code (default: the device's first LAN address) |
 | `-unpair` | | Replace the API token, unpairing every app, once per distinct value |
 | `-log-pairing` | `new` (`always`*) | When to log the pairing QR code: `new` (when the token is created), `always` or `never` |
-| `-network` | `auto` | Run [gk-network](#running-with-gk-network): `auto` (only on a one-interface box next to the router), `on` or `off` |
-| `-network-args` | | Flags for gk-network, separated by spaces |
+| `-network` | `auto` | Run [network protection](#network-protection): `auto` (only on a one-interface box next to the router), `on` or `off` |
+| `-network-args` | | Options for network protection, separated by spaces |
 | `-allowance` | `0` | Daily allowance for rules and users without `allow=`; 0 means always blocked |
 | `-state` | `/data/state.json`* | File where allowance use is kept across restarts |
 | `-reset-time`, `-timezone` | `00:00`, `Local` | When daily allowances reset; `Local` follows `TZ` |
@@ -536,7 +538,7 @@ has two stages:
   SHA-256), and links a fully static `fltr`. nDPI, Go modules and zig's cache
   are kept in `build/cache` between builds.
 - The **final stage** is `wolfi-base` (about 11 MB), with `fltr`, `rules.txt`
-  and `labels.txt`. It provides the CA certificates gk-network needs to
+  and `labels.txt`. It provides the CA certificates network protection needs to
   download blocklists.
 
 To run `inspect` and `protocols`, or the tests, build on the workstation. You
@@ -545,7 +547,7 @@ need Go, [zig](https://ziglang.org/download/) and autotools
 
 ```sh
 make ndpi   # downloads nDPI 6.0 and builds a static libndpi.a for amd64 and arm64
-make        # builds bin/fltr-{amd64,arm64} and bin/gk-network-{amd64,arm64}
+make        # builds bin/fltr-amd64 and bin/fltr-arm64
 make test
 ```
 
@@ -584,17 +586,16 @@ use survives a restart.
   device's L2 segments. Phones may use a randomized MAC per network.
 - **Encrypted Client Hello (ECH)**: if YouTube starts accepting ECH, the SNI
   would be hidden and detection would rely on nDPI's other heuristics.
-  gk-network blocks ECH by default. VPNs and proxies also bypass FLTR, unless
-  gk-network blocks them.
+  Network protection blocks ECH by default. VPNs and proxies also bypass
+  FLTR, unless network protection blocks them.
 - **QUIC connection migration**: a QUIC connection that changes address after
   its handshake has no ClientHello for nDPI to see. Blocked connections never
   finish the handshake, so this only matters if FLTR was not running when the
   connection was set up.
-- **gk-network restarts with FLTR.** FLTR is the first process of its
-  container, and a container ends with its first process, so if FLTR crashes,
-  gk-network stops too (without restoring ARP caches). The restarted container
-  starts a new gk-network, which steers the clients again. gk-fltr on plain
-  gokrazy could instead leave gk-network running and attach to it.
+- **Network protection restarts with FLTR.** FLTR is the first process of
+  its container, and a container ends with its first process, so if FLTR
+  crashes, network protection stops too (without restoring ARP caches). The
+  restarted container starts it again, and it steers the clients again.
 - **No files on the device to edit.** Ramekin devices have no shell, so the
   rules and labels files ship in the image. Per-device rules go in the app or
   `FLTR_RULES`.
