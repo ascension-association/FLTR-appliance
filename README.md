@@ -2,12 +2,7 @@
 
 # FLTR
 
-FLTR is a [Ramekin](https://github.com/ascension-association/ramekin) app
-that blocks YouTube for chosen devices on your network. It is
-[gk-fltr](https://github.com/ascension-association/gk-fltr), packaged to run
-as a signed, health-checked, automatically updated container on a Ramekin
-device (a NanoPi R76S, Radxa Dragon Q6A, Raspberry Pi or PC running
-[gokrazy](https://gokrazy.org/)).
+FLTR is a simple but powerful internet protection appliance.
 
 FLTR uses [nDPI](https://github.com/ntop/nDPI) to identify traffic. A source
 can be matched by any of the following:
