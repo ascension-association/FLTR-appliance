@@ -17,7 +17,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/policy"
+	"github.com/ascension-association/FLTR-appliance/internal/policy"
 )
 
 // Settings is the content of the settings file.

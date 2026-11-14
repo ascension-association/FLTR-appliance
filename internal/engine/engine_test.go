@@ -12,9 +12,9 @@ import (
 
 	"golang.org/x/net/quic"
 
-	"github.com/ascension-association/FLTR/internal/ndpi"
-	"github.com/ascension-association/FLTR/internal/netpkt"
-	"github.com/ascension-association/FLTR/internal/policy"
+	"github.com/ascension-association/FLTR-appliance/internal/ndpi"
+	"github.com/ascension-association/FLTR-appliance/internal/netpkt"
+	"github.com/ascension-association/FLTR-appliance/internal/policy"
 )
 
 // clientHello returns the TLS ClientHello record Go's TLS stack sends for sni.

@@ -11,9 +11,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/engine"
-	"github.com/ascension-association/FLTR/internal/labels"
-	"github.com/ascension-association/FLTR/internal/policy"
+	"github.com/ascension-association/FLTR-appliance/internal/engine"
+	"github.com/ascension-association/FLTR-appliance/internal/labels"
+	"github.com/ascension-association/FLTR-appliance/internal/policy"
 )
 
 // inspect classifies the flows in a pcap file and prints the decision the

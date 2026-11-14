@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ascension-association/FLTR/internal/api"
+	"github.com/ascension-association/FLTR-appliance/internal/api"
 )
 
 func TestAPIAddresses(t *testing.T) {

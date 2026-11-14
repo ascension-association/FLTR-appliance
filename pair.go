@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/api"
+	"github.com/ascension-association/FLTR-appliance/internal/api"
 )
 
 // defaultAPIDir is under /data, the directory Ramekin keeps across updates

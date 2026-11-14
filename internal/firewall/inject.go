@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/ascension-association/FLTR/internal/netpkt"
+	"github.com/ascension-association/FLTR-appliance/internal/netpkt"
 )
 
 // Injector sends packets through raw sockets, so that a client whose flow

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ascension-association/FLTR/internal/engine"
-	"github.com/ascension-association/FLTR/internal/labels"
-	"github.com/ascension-association/FLTR/internal/netpkt"
+	"github.com/ascension-association/FLTR-appliance/internal/engine"
+	"github.com/ascension-association/FLTR-appliance/internal/labels"
+	"github.com/ascension-association/FLTR-appliance/internal/netpkt"
 )
 
 type helloConn struct {

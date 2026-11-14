@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/netinfo"
-	"github.com/ascension-association/FLTR/internal/network"
+	"github.com/ascension-association/FLTR-appliance/internal/netinfo"
+	"github.com/ascension-association/FLTR-appliance/internal/network"
 )
 
 // oneArmedCheck is how long the box must keep looking like it sits next

@@ -11,8 +11,8 @@ import (
 	"github.com/florianl/go-nfqueue/v2"
 	"github.com/mdlayher/netlink"
 
-	"github.com/ascension-association/FLTR/internal/engine"
-	"github.com/ascension-association/FLTR/internal/firewall"
+	"github.com/ascension-association/FLTR-appliance/internal/engine"
+	"github.com/ascension-association/FLTR-appliance/internal/firewall"
 )
 
 // listenQueue receives the packets of one conntrack direction from NFQUEUE

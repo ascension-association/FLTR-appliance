@@ -1,4 +1,4 @@
-module github.com/ascension-association/FLTR
+module github.com/ascension-association/FLTR-appliance
 
 go 1.27.2
 

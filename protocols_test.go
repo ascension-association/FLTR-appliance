@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/ascension-association/FLTR/internal/ndpi"
+	"github.com/ascension-association/FLTR-appliance/internal/ndpi"
 )
 
 func TestResolveProtocols(t *testing.T) {

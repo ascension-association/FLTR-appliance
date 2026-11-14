@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/ndpi"
-	"github.com/ascension-association/FLTR/internal/policy"
+	"github.com/ascension-association/FLTR-appliance/internal/ndpi"
+	"github.com/ascension-association/FLTR-appliance/internal/policy"
 )
 
 // Dir is a packet's conntrack direction, when known.

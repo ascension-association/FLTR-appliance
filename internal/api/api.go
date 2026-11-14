@@ -32,10 +32,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/blocklog"
-	"github.com/ascension-association/FLTR/internal/policy"
-	"github.com/ascension-association/FLTR/internal/quota"
-	"github.com/ascension-association/FLTR/internal/settings"
+	"github.com/ascension-association/FLTR-appliance/internal/blocklog"
+	"github.com/ascension-association/FLTR-appliance/internal/policy"
+	"github.com/ascension-association/FLTR-appliance/internal/quota"
+	"github.com/ascension-association/FLTR-appliance/internal/settings"
 )
 
 // Status is the part of GET /status that the caller knows about.

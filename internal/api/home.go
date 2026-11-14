@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/netinfo"
+	"github.com/ascension-association/FLTR-appliance/internal/netinfo"
 )
 
 // HomeNet decides which addresses are on the home network: the subnets of

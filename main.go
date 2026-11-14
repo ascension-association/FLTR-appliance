@@ -39,17 +39,17 @@ import (
 	"time"
 	_ "time/tzdata" // gokrazy has no zoneinfo files; needed for -timezone
 
-	"github.com/ascension-association/FLTR/internal/api"
-	"github.com/ascension-association/FLTR/internal/blocklog"
-	"github.com/ascension-association/FLTR/internal/engine"
-	"github.com/ascension-association/FLTR/internal/firewall"
-	"github.com/ascension-association/FLTR/internal/labels"
-	"github.com/ascension-association/FLTR/internal/ndpi"
-	"github.com/ascension-association/FLTR/internal/netpkt"
-	"github.com/ascension-association/FLTR/internal/network"
-	"github.com/ascension-association/FLTR/internal/policy"
-	"github.com/ascension-association/FLTR/internal/quota"
-	"github.com/ascension-association/FLTR/internal/settings"
+	"github.com/ascension-association/FLTR-appliance/internal/api"
+	"github.com/ascension-association/FLTR-appliance/internal/blocklog"
+	"github.com/ascension-association/FLTR-appliance/internal/engine"
+	"github.com/ascension-association/FLTR-appliance/internal/firewall"
+	"github.com/ascension-association/FLTR-appliance/internal/labels"
+	"github.com/ascension-association/FLTR-appliance/internal/ndpi"
+	"github.com/ascension-association/FLTR-appliance/internal/netpkt"
+	"github.com/ascension-association/FLTR-appliance/internal/network"
+	"github.com/ascension-association/FLTR-appliance/internal/policy"
+	"github.com/ascension-association/FLTR-appliance/internal/quota"
+	"github.com/ascension-association/FLTR-appliance/internal/settings"
 )
 
 // listFlag collects repeated flag values; comma-separated values are split.

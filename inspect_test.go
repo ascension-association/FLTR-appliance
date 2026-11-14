@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ascension-association/FLTR/internal/netpkt"
+	"github.com/ascension-association/FLTR-appliance/internal/netpkt"
 )
 
 func writePcap(t *testing.T, frames ...[]byte) string {

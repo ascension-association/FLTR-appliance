@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/ascension-association/FLTR/internal/ndpi"
+	"github.com/ascension-association/FLTR-appliance/internal/ndpi"
 )
 
 // protocols searches the protocols nDPI can detect, to find names for

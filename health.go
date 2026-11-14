@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ascension-association/FLTR/internal/firewall"
+	"github.com/ascension-association/FLTR-appliance/internal/firewall"
 )
 
 // defaultReadyFile is written once filtering has started. It lives on /run,

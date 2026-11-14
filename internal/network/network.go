@@ -34,9 +34,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/filter"
-	"github.com/ascension-association/FLTR/internal/netinfo"
-	"github.com/ascension-association/FLTR/internal/steer"
+	"github.com/ascension-association/FLTR-appliance/internal/filter"
+	"github.com/ascension-association/FLTR-appliance/internal/netinfo"
+	"github.com/ascension-association/FLTR-appliance/internal/steer"
 )
 
 // Main runs network protection with the given command-line arguments. It exits the

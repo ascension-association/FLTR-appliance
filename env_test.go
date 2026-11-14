@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ascension-association/FLTR/internal/settings"
+	"github.com/ascension-association/FLTR-appliance/internal/settings"
 )
 
 func TestSplitArgs(t *testing.T) {
