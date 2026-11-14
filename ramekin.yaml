@@ -40,7 +40,7 @@ releases:
   # anonymously, so use a public repository (images are encrypted; their
   # names and sizes are visible). Turn on immutable releases in its settings
   # (Settings > General > Releases) so published releases can't be changed.
-  github: ascension-association/FLTR
+  github: ascension-association/FLTR-appliance
   # Branch holding the channel manifests devices poll: fltr/<channel>.json,
   # written by `ramekin publish` and `ramekin promote` (don't edit them by
   # hand). They live on main, so pull before pushing after a publish.
