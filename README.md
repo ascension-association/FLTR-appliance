@@ -1,8 +1,6 @@
-<img width="300" height="300" alt="logo" src="https://github.com/user-attachments/assets/f81a639b-3f9b-4197-8fca-28eb62821aca" />
+# FLTR-appliance
 
-# FLTR
-
-FLTR is a simple but powerful internet protection appliance.
+A powerful internet protection and screentime management appliance that's easy to use!
 
 FLTR uses [nDPI](https://github.com/ntop/nDPI) to identify traffic. A source
 can be matched by any of the following:
