@@ -5,13 +5,16 @@
 //	                     "devices": [{"type": "mac", "value": "aa:bb:cc:dd:ee:01"}]}}}
 //
 // A user's devices become rules ahead of the rules file, and their
-// allowance overrides any allow= in it.
+// allowance overrides any allow= in it. Names are labels people give
+// devices, keyed by rule ("mac aa:bb:cc:dd:ee:01", "ip 192.168.1.23/32");
+// they don't affect filtering.
 package settings
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,8 +25,13 @@ import (
 
 // Settings is the content of the settings file.
 type Settings struct {
-	Users map[string]User `json:"users"`
+	Users map[string]User   `json:"users"`
+	Names map[string]string `json:"names,omitempty"`
 }
+
+// NameKey is the key of a device's entry in Names, given a normalized
+// value (see policy.Normalize).
+func NameKey(typ, value string) string { return typ + " " + value }
 
 // User is one user's settings.
 type User struct {
@@ -41,7 +49,7 @@ type Device struct {
 
 // Load reads the settings file at path. A missing file has no settings.
 func Load(path string) (*Settings, error) {
-	s := &Settings{Users: map[string]User{}}
+	s := &Settings{Users: map[string]User{}, Names: map[string]string{}}
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return s, nil
@@ -54,6 +62,9 @@ func Load(path string) (*Settings, error) {
 	}
 	if s.Users == nil {
 		s.Users = map[string]User{}
+	}
+	if s.Names == nil {
+		s.Names = map[string]string{}
 	}
 	return s, nil
 }
@@ -76,7 +87,10 @@ func (s *Settings) Save(path string) error {
 
 // Clone returns a deep copy of s.
 func (s *Settings) Clone() *Settings {
-	c := &Settings{Users: make(map[string]User, len(s.Users))}
+	c := &Settings{Users: make(map[string]User, len(s.Users)), Names: maps.Clone(s.Names)}
+	if c.Names == nil {
+		c.Names = map[string]string{}
+	}
 	for name, u := range s.Users {
 		if u.AllowanceSeconds != nil {
 			a := *u.AllowanceSeconds

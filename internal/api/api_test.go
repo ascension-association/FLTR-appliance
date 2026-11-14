@@ -165,7 +165,7 @@ func TestUsers(t *testing.T) {
 		t.Fatalf("PUT bob: %d", code)
 	}
 	if u.Name != "bob" || !u.Managed || u.AllowanceSeconds != 0 || len(u.Devices) != 2 ||
-		u.Devices[0] != (UserDevice{"ip", "192.168.1.40/32", "settings"}) || u.Devices[1].Value != "02:00:00:00:00:0b" {
+		u.Devices[0] != (UserDevice{"ip", "192.168.1.40/32", "settings", ""}) || u.Devices[1].Value != "02:00:00:00:00:0b" {
 		t.Fatalf("bob = %+v", u)
 	}
 	// The app's device rule comes before the rules file's subnet rule.
@@ -177,7 +177,7 @@ func TestUsers(t *testing.T) {
 	// adds a device.
 	f.do("PUT", "/api/v1/users/alice", `{"allowance_seconds":3600,"devices":[{"type":"ip","value":"192.168.1.23"}]}`, &u)
 	if u.AllowanceSeconds != 3600 || u.RemainingSeconds != 3600 || len(u.Devices) != 2 ||
-		u.Devices[0].Source != "settings" || u.Devices[1] != (UserDevice{"mac", "02:00:00:00:00:01", "rules"}) {
+		u.Devices[0].Source != "settings" || u.Devices[1] != (UserDevice{"mac", "02:00:00:00:00:01", "rules", ""}) {
 		t.Fatalf("alice = %+v", u)
 	}
 
@@ -476,5 +476,61 @@ func TestAutoPairExistingToken(t *testing.T) {
 	}
 	if creds.PairOpen() {
 		t.Fatal("PairOpen for an existing token")
+	}
+}
+
+func TestNames(t *testing.T) {
+	f := newFixture(t)
+	mac, _ := net.ParseMAC("02:00:00:00:00:01")
+	f.srv.Seen(netip.MustParseAddr("192.168.1.10"), mac, "Chrome", "", "", f.now)
+	f.srv.Seen(netip.MustParseAddr("192.168.1.11"), nil, "", "", "", f.now.Add(time.Second))
+
+	var n DeviceName
+	if code := f.do("PUT", "/api/v1/names", `{"type":"mac","value":"02:00:00:00:00:01","name":"  Alice's iPad "}`, &n); code != http.StatusOK ||
+		n != (DeviceName{"mac", "02:00:00:00:00:01", "Alice's iPad"}) {
+		t.Fatalf("PUT mac name = %d %+v", code, n)
+	}
+	// A name by IP; a later name by MAC for the same device wins over it.
+	if code := f.do("PUT", "/api/v1/names", `{"type":"ip","value":"192.168.1.11","name":"Printer"}`, &n); code != http.StatusOK || n.Value != "192.168.1.11/32" {
+		t.Fatalf("PUT ip name = %d %+v", code, n)
+	}
+	if code := f.do("PUT", "/api/v1/names", `{"type":"ip","value":"192.168.1.10","name":"Old name"}`, nil); code != http.StatusOK {
+		t.Fatalf("PUT ip name for the iPad: %d", code)
+	}
+
+	var ds []Device
+	f.do("GET", "/api/v1/devices", "", &ds)
+	if len(ds) != 2 || ds[0].Name != "Printer" || ds[1].Name != "Alice's iPad" {
+		t.Fatalf("devices = %+v", ds)
+	}
+	var alice User
+	f.do("GET", "/api/v1/users/alice", "", &alice)
+	if len(alice.Devices) != 1 || alice.Devices[0].Name != "Alice's iPad" {
+		t.Fatalf("alice's devices = %+v", alice.Devices)
+	}
+	var ns []DeviceName
+	f.do("GET", "/api/v1/names", "", &ns)
+	if len(ns) != 3 || ns[0].Value != "192.168.1.10/32" || ns[2].Type != "mac" {
+		t.Fatalf("names = %+v", ns)
+	}
+
+	// An empty name removes it, and the settings file keeps names across loads.
+	if code := f.do("PUT", "/api/v1/names", `{"type":"ip","value":"192.168.1.11","name":""}`, nil); code != http.StatusOK {
+		t.Fatalf("clearing a name: %d", code)
+	}
+	set, err := settings.Load(filepath.Join(f.dir, "api", "settings.json"))
+	if err != nil || len(set.Names) != 2 || set.Names["mac 02:00:00:00:00:01"] != "Alice's iPad" {
+		t.Fatalf("settings names = %v, %v", set.Names, err)
+	}
+
+	for _, body := range []string{
+		`{"type":"ja4","value":"x","name":"n"}`,
+		`{"type":"mac","value":"nope","name":"n"}`,
+		`{"type":"ip","value":"192.168.1.12","name":"` + strings.Repeat("x", maxNameLen+1) + `"}`,
+		`{"type":"ip","value":"192.168.1.12","name":"a\u0007b"}`,
+	} {
+		if code := f.do("PUT", "/api/v1/names", body, nil); code != http.StatusBadRequest {
+			t.Errorf("PUT %s: %d, want 400", body, code)
+		}
 	}
 }

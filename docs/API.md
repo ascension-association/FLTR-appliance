@@ -187,7 +187,7 @@ Returns all users, sorted by name, as an array of user objects:
   "managed": true,
   "devices": [
     {"type": "mac", "value": "aa:bb:cc:dd:ee:01", "source": "settings"},
-    {"type": "ip",  "value": "192.168.1.23/32",   "source": "rules"}
+    {"type": "ip",  "value": "192.168.1.23/32",   "source": "rules", "name": "Living room TV"}
   ]
 }
 ```
@@ -199,6 +199,8 @@ Returns all users, sorted by name, as an array of user objects:
   `DELETE` applies to it.
 - Each device's `source` is `settings` (editable through the API) or `rules`
   (only editable in `rules.txt`).
+- `name` is the name given to that exact device rule with `PUT /names`, and
+  is missing if there is none.
 
 ### `GET /api/v1/users/{name}`
 
@@ -262,7 +264,8 @@ This helps the app pick devices for a user.
     "host": "www.youtube.com",
     "last_seen": "2026-10-12T14:59:31Z",
     "user": "alice",
-    "rule": "mac aa:bb:cc:dd:ee:01"
+    "rule": "mac aa:bb:cc:dd:ee:01",
+    "name": "Alice's phone"
   }
 ]
 ```
@@ -271,6 +274,31 @@ This helps the app pick devices for a user.
 - `client_label` comes from FLTR's `-labels` file (`labels.txt` in the image).
 - `user` and `rule` show what the device matches now.
 - `host` is from the device's most recent connection and may be any site.
+- `name` comes from `PUT /names`, by the device's MAC address if it has a
+  name, or else by its IP address. It is missing if neither has a name.
+
+### `GET /api/v1/names` and `PUT /api/v1/names`
+
+Names are labels people give devices, such as "Alice's iPad". They are
+kept in the settings file and don't affect filtering.
+
+`GET` returns every name, sorted by type and value:
+
+```json
+[{"type": "mac", "value": "aa:bb:cc:dd:ee:01", "name": "Alice's iPad"}]
+```
+
+`PUT` sets one name and returns it:
+
+```json
+{"type": "mac", "value": "AA:BB:CC:DD:EE:01", "name": "Alice's iPad"}
+```
+
+- `type` is `mac` or `ip`, and the value is normalized as for users, so an
+  IP address becomes `192.168.1.23/32`. Name a device by MAC when it has
+  one: the name stays when its IP address changes.
+- `name` is trimmed, and is at most 64 characters with no control
+  characters. An empty name removes the device's name.
 
 ### `GET /api/v1/blocks`
 

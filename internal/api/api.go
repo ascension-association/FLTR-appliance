@@ -31,6 +31,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/ascension-association/FLTR-appliance/internal/blocklog"
 	"github.com/ascension-association/FLTR-appliance/internal/policy"
@@ -121,6 +123,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("DELETE /api/v1/users/{name}/pause", s.pause)
 	mux.HandleFunc("GET /api/v1/devices", s.devices)
 	mux.HandleFunc("GET /api/v1/blocks", s.blocks)
+	mux.HandleFunc("GET /api/v1/names", s.getNames)
+	mux.HandleFunc("PUT /api/v1/names", s.putName)
 	s.pairOpen.Store(cfg.Credentials.PairOpen())
 	root := http.NewServeMux()
 	root.HandleFunc("GET /api/v1/pair", s.pairGet)
@@ -348,6 +352,7 @@ type UserDevice struct {
 	Type   string `json:"type"` // "ip" or "mac"
 	Value  string `json:"value"`
 	Source string `json:"source"` // "settings" (the app) or "rules" (the rules file)
+	Name   string `json:"name,omitempty"`
 }
 
 func (s *Server) users() ([]User, error) {
@@ -377,7 +382,7 @@ func (s *Server) users() ([]User, error) {
 			if slices.Contains(su.Devices, settings.Device{Type: kind, Value: value}) {
 				src = "settings"
 			}
-			u.Devices = append(u.Devices, UserDevice{kind, value, src})
+			u.Devices = append(u.Devices, UserDevice{kind, value, src, set.Names[settings.NameKey(kind, value)]})
 		}
 		us = append(us, u)
 	}
@@ -568,6 +573,7 @@ type Device struct {
 	LastSeen time.Time `json:"last_seen"`
 	User     string    `json:"user,omitempty"` // user it currently belongs to
 	Rule     string    `json:"rule,omitempty"` // rule it currently matches
+	Name     string    `json:"name,omitempty"` // given in the app, by MAC or else IP
 }
 
 // Seen records a flow from a client, for GET /devices.
@@ -611,8 +617,108 @@ func (s *Server) devices(w http.ResponseWriter, r *http.Request) {
 			ds[i].User, ds[i].Rule = m.User, m.Rule
 		}
 	}
+	set, err := settings.Load(s.cfg.SettingsPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for i := range ds {
+		ds[i].Name = deviceName(set.Names, ds[i].IP, ds[i].MAC)
+	}
 	sort.Slice(ds, func(i, j int) bool { return ds[i].LastSeen.After(ds[j].LastSeen) })
 	writeJSON(w, http.StatusOK, ds)
+}
+
+// deviceName is the name given to the device with this IP and MAC: by MAC,
+// which survives a new address, or else by IP.
+func deviceName(names map[string]string, ip, mac string) string {
+	if mac != "" {
+		if v, err := policy.Normalize("mac", mac); err == nil && names[settings.NameKey("mac", v)] != "" {
+			return names[settings.NameKey("mac", v)]
+		}
+	}
+	if v, err := policy.Normalize("ip", ip); err == nil {
+		return names[settings.NameKey("ip", v)]
+	}
+	return ""
+}
+
+// DeviceName is a name given to a device in the app.
+type DeviceName struct {
+	Type  string `json:"type"` // "ip" or "mac"
+	Value string `json:"value"`
+	Name  string `json:"name"`
+}
+
+const maxNameLen = 64 // characters
+
+func (s *Server) getNames(w http.ResponseWriter, r *http.Request) {
+	set, err := settings.Load(s.cfg.SettingsPath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	ns := []DeviceName{}
+	for key, name := range set.Names {
+		typ, value, _ := strings.Cut(key, " ")
+		ns = append(ns, DeviceName{typ, value, name})
+	}
+	sort.Slice(ns, func(i, j int) bool { return ns[i].Type+ns[i].Value < ns[j].Type+ns[j].Value })
+	writeJSON(w, http.StatusOK, ns)
+}
+
+// putName names a device, or with an empty name removes its name.
+func (s *Server) putName(w http.ResponseWriter, r *http.Request) {
+	var body DeviceName
+	if err := decode(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	body.Name = strings.TrimSpace(body.Name)
+	if body.Type != "ip" && body.Type != "mac" {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid device type %q (want ip or mac)", body.Type))
+		return
+	}
+	v, err := policy.Normalize(body.Type, body.Value)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	body.Value = v
+	if err := checkName(body.Name); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.mu.Lock()
+	code, err := s.changeSettings(func(set *settings.Settings) error {
+		if body.Name == "" {
+			delete(set.Names, settings.NameKey(body.Type, body.Value))
+		} else {
+			set.Names[settings.NameKey(body.Type, body.Value)] = body.Name
+		}
+		return nil
+	})
+	s.mu.Unlock()
+	if err != nil {
+		writeError(w, code, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+func checkName(name string) error {
+	if !utf8.ValidString(name) {
+		return errors.New("name: not valid UTF-8")
+	}
+	if n := utf8.RuneCountInString(name); n > maxNameLen {
+		return fmt.Errorf("name: %d characters, at most %d allowed", n, maxNameLen)
+	}
+	for _, c := range name {
+		if unicode.IsControl(c) {
+			return errors.New("name: control characters aren't allowed")
+		}
+	}
+	return nil
 }
 
 // blocks returns recent block log entries, oldest first.
