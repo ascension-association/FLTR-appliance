@@ -78,6 +78,8 @@ func newFixture(t *testing.T) *fixture {
 		BlockLog: filepath.Join(dir, "blocks.jsonl"),
 		Home:     testHome().Contains,
 		Now:      func() time.Time { return f.now },
+		AutoPair: true,
+		Name:     "fltr-test",
 	})
 	return f
 }
@@ -331,7 +333,7 @@ func TestCredentials(t *testing.T) {
 
 	uri := c1.PairingURI("https://192.168.1.1:8443")
 	u, err := url.Parse(uri)
-	if err != nil || u.Scheme != "gkfltr" || u.Host != "pair" {
+	if err != nil || u.Scheme != "fltr" || u.Host != "pair" {
 		t.Fatalf("PairingURI = %q", uri)
 	}
 	if q := u.Query(); q.Get("url") != "https://192.168.1.1:8443" || q.Get("token") != c1.Token || q.Get("pin") != c1.Pin {
@@ -378,5 +380,101 @@ func TestListenTLSPin(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || pin != f.srv.cfg.Credentials.Pin {
 		t.Errorf("status %d, pin %q, want %q", resp.StatusCode, pin, f.srv.cfg.Credentials.Pin)
+	}
+}
+
+// pair sends a /pair request without a token from remote.
+func (f *fixture) pair(srv *Server, method, remote string, out any) int {
+	f.t.Helper()
+	r := httptest.NewRequest(method, "/api/v1/pair", nil)
+	r.RemoteAddr = remote
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, r)
+	if out != nil && w.Code < 300 {
+		if err := json.Unmarshal(w.Body.Bytes(), out); err != nil {
+			f.t.Fatalf("%s /pair: %v in %q", method, err, w.Body)
+		}
+	}
+	return w.Code
+}
+
+type pairInfo struct {
+	FLTR bool   `json:"fltr"`
+	Name string `json:"name"`
+	Open bool   `json:"open"`
+}
+
+func TestAutoPair(t *testing.T) {
+	f := newFixture(t)
+	const home = "192.168.1.70:1234"
+	var info pairInfo
+	if code := f.pair(f.srv, "GET", home, &info); code != http.StatusOK || !info.FLTR || !info.Open || info.Name != "fltr-test" {
+		t.Fatalf("GET /pair = %d %+v, want open", code, info)
+	}
+	if code := f.pair(f.srv, "POST", "203.0.113.5:1234", nil); code != http.StatusForbidden {
+		t.Fatalf("POST /pair from outside: %d, want 403", code)
+	}
+	var got struct{ Token string }
+	if code := f.pair(f.srv, "POST", home, &got); code != http.StatusOK || got.Token != f.token {
+		t.Fatalf("POST /pair = %d, token %q, want the token", code, got.Token)
+	}
+	if code := f.pair(f.srv, "POST", "192.168.1.71:1234", &got); code != http.StatusConflict {
+		t.Fatalf("second POST /pair: %d, want 409", code)
+	}
+	if f.pair(f.srv, "GET", home, &info); info.Open {
+		t.Fatal("GET /pair after pairing: still open")
+	}
+
+	// Closed for good, across restarts, until the token is replaced.
+	creds, created, err := LoadCredentials(filepath.Join(f.dir, "api"))
+	if err != nil || created {
+		t.Fatalf("LoadCredentials = %v, %v", created, err)
+	}
+	if creds.PairOpen() {
+		t.Fatal("PairOpen after pairing and reloading")
+	}
+	os.Remove(filepath.Join(f.dir, "api", "token"))
+	if creds, _, err = LoadCredentials(filepath.Join(f.dir, "api")); err != nil || !creds.PairOpen() {
+		t.Fatalf("new token: PairOpen = false (%v), want true", err)
+	}
+}
+
+func TestAutoPairClosedByQRCode(t *testing.T) {
+	f := newFixture(t)
+	if code := f.do("GET", "/api/v1/status", "", nil); code != http.StatusOK {
+		t.Fatalf("status: %d", code)
+	}
+	if code := f.pair(f.srv, "POST", "192.168.1.70:1234", nil); code != http.StatusConflict {
+		t.Fatalf("POST /pair after an app used the token: %d, want 409", code)
+	}
+	if f.srv.cfg.Credentials.PairOpen() {
+		t.Fatal("pairing still marked open on disk")
+	}
+}
+
+func TestAutoPairOff(t *testing.T) {
+	f := newFixture(t)
+	srv := New(Config{Credentials: f.srv.cfg.Credentials, Home: testHome().Contains})
+	var info pairInfo
+	if f.pair(srv, "GET", "192.168.1.70:1234", &info); info.Open {
+		t.Fatal("GET /pair with AutoPair off: open")
+	}
+	if code := f.pair(srv, "POST", "192.168.1.70:1234", nil); code != http.StatusConflict {
+		t.Fatalf("POST /pair with AutoPair off: %d, want 409", code)
+	}
+}
+
+func TestAutoPairExistingToken(t *testing.T) {
+	// A token from before auto-pairing existed has no marker: closed.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "token"), []byte(strings.Repeat("ab", 32)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	creds, created, err := LoadCredentials(dir)
+	if err != nil || created {
+		t.Fatalf("LoadCredentials = %v, %v", created, err)
+	}
+	if creds.PairOpen() {
+		t.Fatal("PairOpen for an existing token")
 	}
 }

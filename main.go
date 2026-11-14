@@ -292,6 +292,7 @@ func run(args []string) error {
 		networkArgs  = fs.String("network-args", "", "options for network protection, space-separated, e.g. \"-targets=192.168.1.50,192.168.1.51 -ech\"")
 		readyFile    = fs.String("ready-file", defaultReadyFile, "file written once filtering has started, which fltr health checks")
 		unpair       = fs.String("unpair", "", "unpair every app once per distinct value (e.g. a date) by replacing the API token; later starts with the same value keep the token")
+		autoPair     = fs.Bool("auto-pair", true, "until an app has paired, let the first app on the home network pair without the QR code")
 		logPairing   = fs.String("log-pairing", "new", "when to log the app pairing QR code: new (when the token is created), always (at every start) or never")
 	)
 	fs.Var(&apiAddrs, "api", "address for the app API (HTTPS), or off; connections from outside the home network are refused (repeatable; default :8443)")
@@ -508,7 +509,10 @@ func run(args []string) error {
 
 	started := time.Now()
 	if creds != nil {
+		name, _ := os.Hostname()
 		apiSrv = api.New(api.Config{
+			AutoPair:     *autoPair,
+			Name:         name,
 			Credentials:  creds,
 			SettingsPath: c.settingsFile,
 			Tracker:      tracker,
@@ -593,6 +597,9 @@ func run(args []string) error {
 		}
 		defer apiSrv.Close()
 		log.Printf("app API listening on %s (settings in %s)", apiAddrs.String(), *apiDir)
+		if apiSrv.PairOpen() {
+			log.Printf("app API: no app has paired yet, so the first phone on the home network that taps \"Find my FLTR box\" in the app pairs without the QR code (-auto-pair=false turns this off)")
+		}
 	}
 	if c.labelsFile != "" {
 		log.Printf("%d client labels from %s", lbls.Len(), c.labelsFile)

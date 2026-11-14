@@ -31,6 +31,28 @@ type Credentials struct {
 	// Pin is the SHA-256 hash of the certificate's public key (SPKI), as
 	// "sha256/<base64>", the format OkHttp's CertificatePinner uses.
 	Pin string
+	// Dir is the directory the credentials are kept in.
+	Dir string
+}
+
+// pairOpenFile marks a token that no app has used yet. While it exists,
+// an app on the home network may pair without the QR code (see
+// Server.pairPost). Only a new token creates it, so devices paired before
+// this existed stay closed.
+const pairOpenFile = "pair-open"
+
+// PairOpen reports whether no app has paired with the current token yet.
+func (c *Credentials) PairOpen() bool {
+	_, err := os.Stat(filepath.Join(c.Dir, pairOpenFile))
+	return err == nil
+}
+
+// closePairing records that an app has paired with the current token.
+func (c *Credentials) closePairing() error {
+	if err := os.Remove(filepath.Join(c.Dir, pairOpenFile)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // LoadCredentials reads the token and certificate from dir, creating them
@@ -40,7 +62,7 @@ func LoadCredentials(dir string) (c *Credentials, created bool, err error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, false, err
 	}
-	c = &Credentials{}
+	c = &Credentials{Dir: dir}
 	tokenPath := filepath.Join(dir, "token")
 	b, err := os.ReadFile(tokenPath)
 	switch {
@@ -48,6 +70,11 @@ func LoadCredentials(dir string) (c *Credentials, created bool, err error) {
 		raw := make([]byte, 32)
 		rand.Read(raw)
 		c.Token = hex.EncodeToString(raw)
+		// Mark the token unclaimed before saving it, so a crash in between
+		// can't leave a fresh token that no app can pair with automatically.
+		if err := os.WriteFile(filepath.Join(dir, pairOpenFile), nil, 0o600); err != nil {
+			return nil, false, err
+		}
 		if err := os.WriteFile(tokenPath, []byte(c.Token+"\n"), 0o600); err != nil {
 			return nil, false, err
 		}
@@ -118,9 +145,9 @@ func newCert(certPath, keyPath string) error {
 }
 
 // PairingURI returns the URI an app scans to pair with gk-fltr at baseURL,
-// e.g. "gkfltr://pair?pin=sha256%2F...&token=...&url=https%3A%2F%2F192.168.1.1%3A8443".
+// e.g. "fltr://pair?pin=sha256%2F...&token=...&url=https%3A%2F%2F192.168.1.1%3A8443".
 func (c *Credentials) PairingURI(baseURL string) string {
-	return "gkfltr://pair?" + url.Values{"url": {baseURL}, "token": {c.Token}, "pin": {c.Pin}}.Encode()
+	return "fltr://pair?" + url.Values{"url": {baseURL}, "token": {c.Token}, "pin": {c.Pin}}.Encode()
 }
 
 // QRText renders text as a QR code for a terminal, two modules per

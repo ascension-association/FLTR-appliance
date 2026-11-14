@@ -10,6 +10,7 @@ usage and change allowances from a phone. It is on by default, on port 8443.
 -api-dir=/data/api             # default; holds token, cert.pem, key.pem, settings.json
 -api-url=https://fltr.lan:8443     # optional: the URL the app should use, for the QR code
 -log-pairing=always            # set by the image: log the QR code at every start
+-auto-pair=false               # optional: don't let the first app pair without the QR code
 -unpair=2026-11-12             # optional: replace the token once per value
 ```
 
@@ -58,7 +59,7 @@ network address. With several LAN interfaces (e.g. a guest network), set
 The QR code holds a URI:
 
 ```
-gkfltr://pair?url=https%3A%2F%2F192.168.1.1%3A8443&token=<64 hex chars>&pin=sha256%2F<base64>
+fltr://pair?url=https%3A%2F%2F192.168.1.1%3A8443&token=<64 hex chars>&pin=sha256%2F<base64>
 ```
 
 | Parameter | Meaning |
@@ -73,6 +74,36 @@ and EncryptedSharedPreferences).
 To unpair every app, start FLTR with `-unpair=<value>` (for example
 `FLTR_ARGS=-unpair=2026-11-12`), which replaces the token once per distinct
 value. The certificate and its pin stay the same.
+
+### Pairing without the QR code
+
+Until an app has paired, the first app on the home network can pair
+without the QR code. FLTR records the first pairing, by either method, in
+`-api-dir` and from then on accepts only the QR code. Only a new token (on
+first start or with `-unpair`) opens it again. Tokens made before this
+feature existed stay closed. `-auto-pair=false` turns it off.
+
+This trades some safety for ease: during setup, any device on the home
+network can pair first. If the parent's app can't pair this way because
+someone else got there first, use `-unpair` and pair again.
+
+These two endpoints need no token, but they still work only from the
+home network:
+
+- `GET /api/v1/pair` returns `{"fltr": true, "name": "<host name>", "open": true}`.
+  `open` is whether an app can pair now.
+- `POST /api/v1/pair` returns `{"token": "<64 hex chars>"}` to the first
+  caller while `open` is true, and closes it. After that it returns 409.
+
+There is no pin to check before pairing, so the app trusts on first use. It
+takes the pin from the certificate of the connection that got the token, and
+pins it from then on.
+
+An app can find the box by trying `GET /api/v1/pair` on port 8443 at the
+phone's gateway, then at the rest of the phone's subnet. The certificate
+check can't pass yet, so the app accepts any certificate for this probe and
+records its pin. It should then send the POST over a connection pinned to
+that pin, and ask the person to confirm the box first.
 
 ## TLS: trust by pin
 
@@ -92,7 +123,7 @@ Android 9 and later, HTTPS needs no network security config change.
 
 ## Requests
 
-- Send `Authorization: Bearer <token>` with every request.
+- Send `Authorization: Bearer <token>` with every request except `/pair`.
 - Request and response bodies are JSON (UTF-8). Request bodies are at most
   64 KiB, and unknown fields are rejected.
 - Durations are whole seconds, and times are RFC 3339.
@@ -104,6 +135,7 @@ Android 9 and later, HTTPS needs no network security config change.
 | 401 | Missing or wrong token |
 | 403 | Request from outside the home network |
 | 404 | Unknown user |
+| 409 | `POST /pair` after an app has paired |
 | 429 | 10 failed authentications from this address within a minute; retry after `Retry-After` seconds |
 | 500 | Server-side failure, e.g. disk |
 

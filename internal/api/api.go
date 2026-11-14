@@ -2,10 +2,11 @@
 //
 // The API is for the home network only (see HomeNet): connections from
 // elsewhere are closed before TLS, whatever address it listens on. Every
-// request needs "Authorization: Bearer <token>". The server uses a
-// self-signed certificate that apps trust by its pin. Apps get both by
-// scanning the pairing QR code (see Credentials.PairingURI). docs/API.md
-// describes the endpoints.
+// request but /pair needs "Authorization: Bearer <token>". The server uses
+// a self-signed certificate that apps trust by its pin. Apps get both by
+// scanning the pairing QR code (see Credentials.PairingURI), or, until the
+// first app pairs, from /pair (see Config.AutoPair). docs/API.md describes
+// the endpoints.
 package api
 
 import (
@@ -28,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ascension-association/FLTR/internal/blocklog"
@@ -60,6 +62,11 @@ type Config struct {
 	// (default: a HomeNet).
 	Home func(netip.Addr) bool
 	Now  func() time.Time
+	// AutoPair lets the first app on the home network get the token from
+	// POST /pair, without the QR code, until an app has paired.
+	AutoPair bool
+	// Name is shown to apps looking for a box to pair with.
+	Name string
 }
 
 // Server is the API server.
@@ -74,6 +81,9 @@ type Server struct {
 
 	failMu sync.Mutex
 	fails  map[netip.Addr]*failWindow
+
+	pairMu   sync.Mutex
+	pairOpen atomic.Bool // no app has paired with the token yet
 
 	servers []*http.Server
 }
@@ -111,9 +121,17 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("DELETE /api/v1/users/{name}/pause", s.pause)
 	mux.HandleFunc("GET /api/v1/devices", s.devices)
 	mux.HandleFunc("GET /api/v1/blocks", s.blocks)
-	s.handler = s.auth(mux)
+	s.pairOpen.Store(cfg.Credentials.PairOpen())
+	root := http.NewServeMux()
+	root.HandleFunc("GET /api/v1/pair", s.pairGet)
+	root.HandleFunc("POST /api/v1/pair", s.pairPost)
+	root.Handle("/", s.auth(mux))
+	s.handler = s.homeOnly(root)
 	return s
 }
+
+// PairOpen reports whether an app can pair now without the QR code.
+func (s *Server) PairOpen() bool { return s.cfg.AutoPair && s.pairOpen.Load() }
 
 // Handler returns the API's HTTP handler, without TLS.
 func (s *Server) Handler() http.Handler { return s.handler }
@@ -163,17 +181,30 @@ func (s *Server) Close() error {
 	return nil
 }
 
+// homeOnly refuses requests from outside the home network.
+func (s *Server) homeOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.cfg.Home(clientIP(r)) {
+			writeError(w, http.StatusForbidden, "the API is only available on the home network")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func clientIP(r *http.Request) netip.Addr {
+	ap, _ := netip.ParseAddrPort(r.RemoteAddr)
+	return ap.Addr().Unmap()
+}
+
 // auth checks the bearer token, refusing addresses with too many failures.
 func (s *Server) auth(next http.Handler) http.Handler {
 	want := []byte("Bearer " + s.cfg.Credentials.Token)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ap, _ := netip.ParseAddrPort(r.RemoteAddr)
-		ip := ap.Addr().Unmap()
+		ip := clientIP(r)
 		now := s.cfg.Now()
-		if !s.cfg.Home(ip) {
-			writeError(w, http.StatusForbidden, "the API is only available on the home network")
-			return
-		}
 
 		s.failMu.Lock()
 		f := s.fails[ip]
@@ -206,10 +237,58 @@ func (s *Server) auth(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "missing or wrong token")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
-		w.Header().Set("Cache-Control", "no-store")
+		if s.pairOpen.Load() {
+			// An app paired with the QR code: nobody else may pair
+			// without it.
+			s.closePairing(ip, "the QR code")
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// pairGet tells an app looking for a box whether it can pair without the
+// QR code.
+func (s *Server) pairGet(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"fltr": true, "name": s.cfg.Name, "open": s.PairOpen()})
+}
+
+// pairPost gives the token to the first app that asks while no app has
+// paired, then closes pairing for good: only a new token (-unpair) opens
+// it again. The app learns the certificate pin from this connection.
+func (s *Server) pairPost(w http.ResponseWriter, r *http.Request) {
+	s.pairMu.Lock()
+	defer s.pairMu.Unlock()
+	if !s.PairOpen() {
+		writeError(w, http.StatusConflict, "an app has already paired; scan the QR code from fltr's log instead")
+		return
+	}
+	if err := s.closePairingLocked(clientIP(r), "auto-pairing"); err != nil {
+		writeError(w, http.StatusInternalServerError, "can't record the pairing: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"token": s.cfg.Credentials.Token})
+}
+
+func (s *Server) closePairing(ip netip.Addr, how string) {
+	s.pairMu.Lock()
+	defer s.pairMu.Unlock()
+	if err := s.closePairingLocked(ip, how); err != nil {
+		log.Printf("api: %v", err)
+	}
+}
+
+// closePairingLocked records that the app at ip paired, before anything
+// else learns so, so a crash can't let a second app pair.
+func (s *Server) closePairingLocked(ip netip.Addr, how string) error {
+	if !s.pairOpen.Load() {
+		return nil
+	}
+	if err := s.cfg.Credentials.closePairing(); err != nil {
+		return fmt.Errorf("closing pairing: %w", err)
+	}
+	s.pairOpen.Store(false)
+	log.Printf("app API: the app at %s paired using %s; apps can now pair only with the QR code", ip, how)
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

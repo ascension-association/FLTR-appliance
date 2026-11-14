@@ -318,6 +318,13 @@ can control FLTR, so keep it private. Reading a device's log takes its
 Ramekin credentials, which already allow replacing its software; to keep the
 QR code out of the log after pairing, set `FLTR_ARGS=-log-pairing=never`.
 
+Setting up doesn't need the log at all: until an app has paired, the app's
+**Find my FLTR box** button finds FLTR on the home Wi-Fi and pairs without
+the QR code. After the first app pairs (either way), this stops, and only a
+new token from `-unpair` opens it again. During setup, any device on the home
+network could pair first. If that worries you, set `-auto-pair=false`.
+Other phones pair with the QR code.
+
 To unpair every app, replace the token with `-unpair`. It takes any value,
 such as the date, and acts once per value, so it can stay set:
 
@@ -491,6 +498,7 @@ Pass flags through `FLTR_ARGS` (or the `%runscript` in `fltr.def`).
 | `-api-dir` | `/data/api` | Token, TLS certificate and `settings.json` of the app API |
 | `-api-url` | | URL for the app in the pairing QR code (default: the device's first LAN address) |
 | `-unpair` | | Replace the API token, unpairing every app, once per distinct value |
+| `-auto-pair` | `true` | Until an app has paired, let the first app on the home network pair without the QR code |
 | `-log-pairing` | `new` (`always`*) | When to log the pairing QR code: `new` (when the token is created), `always` or `never` |
 | `-network` | `auto` | Run [network protection](#network-protection): `auto` (only on a one-interface box next to the router), `on` or `off` |
 | `-network-args` | | Options for network protection, separated by spaces |
