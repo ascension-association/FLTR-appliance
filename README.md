@@ -14,15 +14,19 @@ YouTube is the default, but FLTR can block anything nDPI detects, such as
 Instagram, Facebook or TikTok, or whole categories like social networks. See
 [Choosing what to block](#choosing-what-to-block).
 
-Sources can also get a **daily allowance**, for example 2 hours of YouTube per
+Sources can also get a **daily allowance**, for example 2 hours of screentime per
 day, measured in active minutes and shared by a user's devices. See
 [Daily allowances](#daily-allowances).
 
 FLTR also provides **network protection**: safe-search DNS and malware, VPN
 and country blocking. On a box with one network interface next to your
 existing router, it steers the LAN's traffic through the box, so FLTR can
-filter it without replacing the router. See
-[Network protection](#network-protection).
+filter it. See [Network protection](#network-protection).
+
+**Important:** FLTR is a _network packet inspection appliance_, not a _router_ —
+it requires a separate, pre-existing router device on your network to function. In the 
+United States, this is an important distinction as explained in 
+[Section 2 of The Secure Networks Act](https://www.fcc.gov/supplychain/coveredlist).
 
 ## Quick start
 
