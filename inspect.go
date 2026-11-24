@@ -16,8 +16,8 @@ import (
 	"github.com/ascension-association/FLTR-appliance/internal/policy"
 )
 
-// inspect classifies the flows in a pcap file and prints the decision the
-// router would make for each, which is handy for finding JA4 fingerprints
+// inspect classifies the flows in a pcap file and prints the decision FLTR
+// would make for each, which is handy for finding JA4 fingerprints
 // and testing rules. With -learn, it adds the JA4 fingerprints it sees to the
 // labels file under the given label.
 func inspect(args []string) error {

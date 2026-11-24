@@ -348,19 +348,19 @@ describes pairing, certificate pinning and the endpoints.
 
 ## Network protection
 
-FLTR can run on the router. More often, a Ramekin device is a box with one
-network interface next to the existing router. There, FLTR's network
-protection uses ARP to steer the LAN's traffic through the box, which
-forwards it to the router, and FLTR filters that forwarded traffic as it
-would on a router. Network protection also answers the LAN's DNS with
+FLTR runs on a box with one network interface next to the existing router,
+which it requires. There, FLTR's network protection uses ARP to steer the
+LAN's traffic through the box for inspection, passes it on to the router,
+and FLTR filters that traffic as it passes through. Network protection also answers the LAN's DNS with
 safe search and blocklists, and blocks malware, VPNs, encrypted DNS and some
 countries.
 
 - **When it starts.** With `-network=auto` (the default), FLTR starts
   network protection once the box has had one routable interface, with the
-  default gateway, on two checks 15 seconds apart. On a router, it never
-  starts. A router can look like a one-interface box briefly at boot, and
-  steering there would redirect the uplink's network instead of the LAN.
+  default gateway, on two checks 15 seconds apart. On a box with more than
+  one routable interface, it never starts. Such a box can look like a
+  one-interface box briefly at boot, and steering there would redirect the
+  uplink's network instead of the LAN.
   `-network=on` starts it regardless, and `-network=off` never does.
 - **Settings.** `-network-args` passes options to network protection,
   separated by spaces. Quote it inside `FLTR_ARGS`, e.g.
