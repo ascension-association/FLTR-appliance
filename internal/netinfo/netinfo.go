@@ -122,8 +122,20 @@ func HexLEToIP(h string) (netip.Addr, error) {
 // OneArmed reports whether this host sits on the LAN with a single
 // interface, next to the router rather than being it: exactly one interface
 // has a routable address, and it has the IPv4 default gateway. It returns
-// that interface.
+// that interface. A bridge with one linked port counts (it behaves like that
+// port); one with two or more doesn't, since the box is then in the wire (see
+// Bridging).
 func OneArmed() (iface string, ok bool) {
+	iface, ok = oneArmedIface()
+	if ok {
+		if b, isBridge := bridgeOf(iface); isBridge && len(b.Linked) >= 2 {
+			return "", false
+		}
+	}
+	return iface, ok
+}
+
+func oneArmedIface() (string, bool) {
 	ifs, err := net.Interfaces()
 	if err != nil {
 		return "", false

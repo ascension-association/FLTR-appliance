@@ -47,6 +47,7 @@ func Main(args []string) {
 	iface := flag.String("i", "eth0", "LAN interface")
 	gw := flag.String("gw", "auto", `existing gateway/router IP, or "auto" to detect the default route`)
 	targetsCSV := flag.String("targets", "all", `comma-separated client IPs to manage, or "all" to steer every LAN host, including ones that join later`)
+	steerOn := flag.Bool("steer", true, "steer clients' traffic through this host with targeted ARP; false in bridge mode, where it already crosses the box (DNS and IP blocking still apply)")
 	rescan := flag.Duration("rescan", 10*time.Minute, `with -targets=all, how often to scan the LAN for hosts that joined without being noticed (0 disables; new hosts are also picked up as they announce themselves)`)
 	dnsAddr := flag.String("dns", ":53", `address for the safe-search DNS resolver, or "" to disable`)
 	// Default to Safe Surfer's family-filtering resolvers (safesurfer.io).
@@ -267,65 +268,15 @@ func Main(args []string) {
 		close(stop)
 	}()
 
-	// Resolve the existing gateway: either the default route, or an explicit IP.
 	var gwIP netip.Addr
-	if *gw == "auto" {
-		var err error
-		gwIP, err = netinfo.Gateway(*iface)
-		if err != nil {
-			log.Fatalf("auto gateway: %v", err)
-		}
-		log.Printf("discovered existing gateway %s on %s", gwIP, *iface)
-	} else {
-		var err error
-		gwIP, err = netip.ParseAddr(*gw)
-		if err != nil {
-			log.Fatalf("invalid gateway IP %q", *gw)
-		}
-	}
-
-	// Resolve the client set: either "all" discovered hosts, or an explicit list.
 	var targets []netip.Addr
 	var discovered []steer.Target
 	all := strings.TrimSpace(*targetsCSV) == "all"
-	if all {
-		var err error
-		discovered, err = steer.DiscoverClients(*iface, gwIP, 0)
-		if err != nil {
-			log.Fatalf("discover clients: %v", err)
-		}
+	if *steerOn {
+		gwIP, targets, discovered = prepareSteering(*iface, *gw, *targetsCSV, all)
 	} else {
-		for _, s := range strings.Split(*targetsCSV, ",") {
-			s = strings.TrimSpace(s)
-			if s == "" {
-				continue
-			}
-			ip, err := netip.ParseAddr(s)
-			if err != nil {
-				log.Fatalf("invalid target IP %q", s)
-			}
-			targets = append(targets, ip)
-		}
+		log.Printf("not steering: in bridge mode, the LAN's traffic already crosses %s", *iface)
 	}
-	if !all && len(targets) == 0 {
-		log.Fatal("no target IPs given")
-	}
-
-	if err := filter.EnableForwarding(); err != nil {
-		log.Fatalf("%v", err)
-	}
-	if !filter.ForwardingEnabled() {
-		log.Fatal("ip_forward did not take effect; refusing to steer (would black-hole clients)")
-	}
-	log.Print("ip forwarding enabled")
-	// Without this, the kernel tells steered clients to bypass this host.
-	if err := filter.DisableRedirects(*iface); err != nil {
-		log.Fatalf("%v", err)
-	}
-	if !filter.RedirectsDisabled(*iface) {
-		log.Fatal("send_redirects did not take effect; refusing to steer (clients would be redirected past the filters)")
-	}
-	log.Print("ICMP redirects disabled")
 
 	// IPv6 is disabled by default: it's a common way to bypass IPv4-based
 	// filtering (ARP steering only covers IPv4). Disabling it on the host now
@@ -447,6 +398,11 @@ func Main(args []string) {
 		log.Printf("blocklist refresh every %s", *refresh)
 	}
 
+	if !*steerOn {
+		// Nothing to restore on stop: the stop handler exits.
+		select {}
+	}
+
 	s, err := steer.New(steer.Config{
 		Interface: *iface,
 		Gateway:   gwIP,
@@ -485,6 +441,69 @@ func Main(args []string) {
 	s.Run(stop)
 	log.Print("done")
 	ctl.Close()
+}
+
+// prepareSteering resolves the gateway (the default route on iface for
+// "auto") and the clients to steer (discovered on iface when all), and turns
+// on forwarding with ICMP redirects off. It exits the process if any of that
+// fails, since steering then would black-hole clients or let them bypass
+// the filters.
+func prepareSteering(iface, gw, targetsCSV string, all bool) (gwIP netip.Addr, targets []netip.Addr, discovered []steer.Target) {
+	if gw == "auto" {
+		var err error
+		gwIP, err = netinfo.Gateway(iface)
+		if err != nil {
+			log.Fatalf("auto gateway: %v", err)
+		}
+		log.Printf("discovered existing gateway %s on %s", gwIP, iface)
+	} else {
+		var err error
+		gwIP, err = netip.ParseAddr(gw)
+		if err != nil {
+			log.Fatalf("invalid gateway IP %q", gw)
+		}
+	}
+
+	// Resolve the client set: either "all" discovered hosts, or an explicit list.
+	if all {
+		var err error
+		discovered, err = steer.DiscoverClients(iface, gwIP, 0)
+		if err != nil {
+			log.Fatalf("discover clients: %v", err)
+		}
+	} else {
+		for _, s := range strings.Split(targetsCSV, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			ip, err := netip.ParseAddr(s)
+			if err != nil {
+				log.Fatalf("invalid target IP %q", s)
+			}
+			targets = append(targets, ip)
+		}
+		if len(targets) == 0 {
+			log.Fatal("no target IPs given")
+		}
+	}
+
+	if err := filter.EnableForwarding(); err != nil {
+		log.Fatalf("%v", err)
+	}
+	if !filter.ForwardingEnabled() {
+		log.Fatal("ip_forward did not take effect; refusing to steer (would black-hole clients)")
+	}
+	log.Print("ip forwarding enabled")
+	// Without this, the kernel tells steered clients to bypass this host.
+	if err := filter.DisableRedirects(iface); err != nil {
+		log.Fatalf("%v", err)
+	}
+	if !filter.RedirectsDisabled(iface) {
+		log.Fatal("send_redirects did not take effect; refusing to steer (clients would be redirected past the filters)")
+	}
+	log.Print("ICMP redirects disabled")
+	return gwIP, targets, discovered
 }
 
 // logTotals logs one summary line with everything currently blocked: domains

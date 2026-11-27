@@ -215,6 +215,8 @@ All of these must be built in (`=y`): `NF_TABLES_INET`, `NFT_CT`,
 - `NFT_QUEUE` and `NETFILTER_NETLINK_QUEUE`, for queue mode
 - `NETFILTER_NETLINK_LOG` and `NFT_LOG`, for log mode
 
+[Bridge mode](#bridge-mode) also needs `BRIDGE` and `BRIDGE_NETFILTER`.
+
 The NanoPi R76S kernel
 ([kernel.r76s](https://github.com/ascension-association/kernel.r76s)) and
 [kernel.q6a](https://github.com/ascension-association/kernel.q6a), for the
@@ -353,11 +355,14 @@ which it requires. There, FLTR's network protection uses ARP to steer the
 LAN's traffic through the box for inspection, passes it on to the router,
 and FLTR filters that traffic as it passes through. Network protection also answers the LAN's DNS with
 safe search and blocklists, and blocks malware, VPNs, encrypted DNS and some
-countries.
+countries. On a box with two ports, FLTR can instead sit in the wire between
+the router and the LAN, with no ARP steering (see [Bridge mode](#bridge-mode)).
 
 - **When it starts.** With `-network=auto` (the default), FLTR starts
   network protection once the box has had one routable interface, with the
-  default gateway, on two checks 15 seconds apart. On a box with more than
+  default gateway, on two checks 15 seconds apart. In bridge mode, it starts
+  the same way on the bridge, without steering, and restarts whenever the box
+  moves in or out of bridge mode. On a box with more than
   one routable interface, it never starts. Such a box can look like a
   one-interface box briefly at boot, and steering there would redirect the
   uplink's network instead of the LAN.
@@ -390,6 +395,44 @@ Filtering and network protection work together:
   passes through FLTR's queue. If FLTR is down, new connections stall
   for all of them until it restarts, not just for restricted users.
   `-fail-open` avoids that.
+
+### Bridge mode
+
+On the NanoPi R76S, the firmware puts both ethernet ports in a bridge,
+`br0`, which has the box's address (from the router's DHCP) and `eth0`'s
+MAC address. Spanning tree is on, so plugging both ports into the same switch
+doesn't create a loop.
+
+- **One cable** (in either port): the bridge works like a single
+  interface, and network protection steers the LAN with ARP as usual.
+- **Two cables**: connect one port to a LAN port on the router, and the other
+  to the switch or access point the household's devices use. All of their
+  traffic then crosses the box, with no ARP steering. FLTR logs
+  `bridge mode: br0 bridges eth0 and eth1`, and network protection restarts
+  with `-steer=false`. It still answers DNS with safe search and blocklists,
+  and keeps the IP, VPN and encrypted-DNS blocking, since those rules see
+  bridged traffic too. Unplugging a cable switches back to ARP steering
+  within about 30 seconds.
+
+Don't connect the box to the ISP's modem. The box needs its own address,
+and devices behind the router all reach the modem from one address, so
+per-device rules would stop working. Devices that connect to the router
+directly, including over the router's own Wi-Fi, don't cross the box and
+aren't filtered. Turn the router's Wi-Fi off, or put an access point behind
+the box.
+
+Bridged traffic reaches FLTR's rules only through the kernel's bridge
+netfilter (`CONFIG_BRIDGE_NETFILTER`). While two ports are bridged, FLTR
+turns on `net.bridge.bridge-nf-call-iptables` and `-ip6tables`, and
+checks that they took effect. If it can't, FLTR refuses to run, and its
+health check fails, because the box would otherwise pass that traffic
+unfiltered while looking healthy. Unlike FLTR being down in queue mode,
+that would not fail closed.
+
+With one cable, FLTR turns them off. Nothing is bridged then, and network
+protection routes steered traffic into and back out of `br0`. With bridge
+netfilter on, the R76S's kernel loses most of those routed packets, so
+steered devices lose their internet connection.
 
 ### If the nftables ruleset is flushed
 
@@ -582,6 +625,16 @@ scripts/netns-test.sh bin/fltr-amd64 -ip 192.168.1.10              # queue, fail
 scripts/netns-test.sh bin/fltr-amd64 -ip 192.168.1.10 -fail-open
 scripts/netns-test.sh bin/fltr-amd64 -mode log -ip 192.168.1.10
 FLTR_RULES='ip 192.168.1.10 user=kid' scripts/netns-test.sh bin/fltr-amd64 -v
+```
+
+`NETNS_TOPO=bridge` runs the same tests with FLTR in [bridge
+mode](#bridge-mode), in the wire between the client and the router. Its
+bridged traffic is filtered only with `br_netfilter` loaded, which needs root
+once (without it, FLTR must refuse to start):
+
+```sh
+sudo modprobe br_netfilter
+NETNS_TOPO=bridge scripts/netns-test.sh bin/fltr-amd64
 ```
 
 `scripts/netns-allowance-test.sh` tests daily allowances the same way: a 4

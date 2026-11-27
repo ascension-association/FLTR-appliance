@@ -27,6 +27,7 @@ Run `fltr network -help` to list all options and their defaults.
 
 - `-i`        LAN interface (default `eth0`)
 - `-gw`       user-defined IP or `auto` to use the current router's default gateway (default `auto`)
+- `-steer`    steer clients with targeted ARP (default `true`). In [bridge mode](../README.md#bridge-mode), FLTR passes `-steer=false`: the LAN's traffic already crosses the box, so only the DNS resolver and the nftables blocking run, and IP forwarding and ICMP redirects are left alone
 - `-targets`  comma-separated client IPs, or `all` to steer every host on the subnet (self and gateway excluded; default `all`). With `all`, hosts that join later are steered too: within seconds when they announce their address (as devices do when they join the network), and otherwise at the next `-rescan`
 - `-rescan`   with `-targets=all`, how often to ARP-scan the subnet for hosts that weren't noticed joining (default `10m`; `0` disables)
 - `-dns`       listen address for the safe-search resolver (default `:53`; `""` disables)

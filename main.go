@@ -540,6 +540,11 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	bridge := newBridgeWatch()
+	if err := bridge.check(); err != nil {
+		return err
+	}
+
 	opts := firewall.Options{
 		Table:        *table,
 		Priority:     int32(*priority),
@@ -715,6 +720,9 @@ func run(args []string) error {
 				}
 			}
 		case now := <-tick.C:
+			if err := bridge.check(); err != nil {
+				return err
+			}
 			eng.Expire(now)
 			rmt, smt := modTime(c.rulesFile), modTime(c.settingsFile)
 			if !rmt.Equal(rulesMtime) || !smt.Equal(settingsMtime) {
