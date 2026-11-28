@@ -245,15 +245,35 @@ func (s *SafeSearch) forward(w dns.ResponseWriter, r *dns.Msg) {
 // ListenAndServe starts UDP and TCP listeners on addr (e.g. ":53") and blocks
 // until one of them fails.
 func (s *SafeSearch) ListenAndServe(addr string) error {
+	errc, err := s.Start(addr)
+	if err != nil {
+		return err
+	}
+	return <-errc
+}
+
+// Start starts UDP and TCP listeners on addr and returns once both are
+// answering queries, so DNS can be redirected here without a gap. The channel
+// then reports the first listener to fail.
+func (s *SafeSearch) Start(addr string) (<-chan error, error) {
 	mux := dns.NewServeMux()
 	mux.HandleFunc(".", s.handler)
 
-	udp := &dns.Server{Addr: addr, Net: "udp", Handler: mux}
-	tcp := &dns.Server{Addr: addr, Net: "tcp", Handler: mux}
-
 	errc := make(chan error, 2)
-	go func() { errc <- udp.ListenAndServe() }()
-	go func() { errc <- tcp.ListenAndServe() }()
+	started := make(chan struct{}, 2)
+	for _, network := range []string{"udp", "tcp"} {
+		srv := &dns.Server{Addr: addr, Net: network, Handler: mux,
+			NotifyStartedFunc: func() { started <- struct{}{} }}
+		go func() { errc <- srv.ListenAndServe() }()
+	}
+	for n := 0; n < 2; {
+		select {
+		case <-started:
+			n++
+		case err := <-errc:
+			return nil, err
+		}
+	}
 	log.Printf("dns: safe-search resolver listening on %s (upstreams %v)", addr, s.upstreams)
-	return <-errc
+	return errc, nil
 }

@@ -327,25 +327,18 @@ func Main(args []string) {
 				log.Fatalf("nft block VPN: %v", err)
 			}
 		}
-		if doRedirectDNS {
-			if err := blocker.RedirectDNS(); err != nil {
-				log.Fatalf("nft redirect dns: %v", err)
-			}
-		}
 		if ipBlockEnabled {
 			blocker.SetAllowIPs(allowIPs)
-			prefixes := filter.LoadIPBlocklists(ipURLs)
-			if len(prefixes) > 0 {
-				if err := blocker.BlockCIDRs(prefixes); err != nil {
-					log.Fatalf("nft block CIDRs: %v", err)
-				}
-			}
 		}
 	}
 
-	// Safe-search DNS resolver. Steered clients that use this host for DNS get
+	// Safe-search DNS resolver. Clients whose DNS reaches this host get
 	// forced-safe answers for the covered sites, blocked domains sinkholed, and
-	// normal resolution for the rest.
+	// normal resolution for the rest. It starts before the lists download, with
+	// safe search, the allowlist and the always-blocked domains, and DNS is
+	// redirected to it only once it answers. In bridge mode, clients' traffic
+	// already crosses the box, so a redirect before then would leave the whole
+	// LAN without DNS while the lists download (a minute or more).
 	var bl *filter.Blocklist
 	if *dnsAddr != "" {
 		ss := filter.NewSafeSearch(withDNSPort(*upstream1), withDNSPort(*upstream2))
@@ -359,21 +352,46 @@ func Main(args []string) {
 		for _, d := range filter.DefaultForceBlockDomains {
 			bl.ForceBlock(d)
 		}
-		bl.LoadAllowlists(allowURLs)
-		bl.LoadDefaults(dnsURLs) // uses defaults when dnsURLs is empty
 		for _, d := range extra {
 			bl.Add(d)
 		}
 		ss.SetBlocklist(bl)
 
-		go func() {
-			if err := ss.ListenAndServe(*dnsAddr); err != nil {
-				log.Fatalf("dns resolver: %v", err)
-			}
-		}()
+		errc, err := ss.Start(*dnsAddr)
+		if err != nil {
+			log.Fatalf("dns resolver: %v", err)
+		}
+		go func() { log.Fatalf("dns resolver: %v", <-errc) }()
+	}
+	if doRedirectDNS && blocker != nil {
+		if err := blocker.RedirectDNS(); err != nil {
+			log.Fatalf("nft redirect dns: %v", err)
+		}
 	}
 
-	logTotals(bl, blocker, len(seedIPs))
+	// Download the domain and IP lists in the background, so DNS keeps
+	// working meanwhile. Reload builds the domain lists apart and swaps them
+	// in, so lookups never wait on a download.
+	listsLoaded := make(chan struct{})
+	go func() {
+		defer close(listsLoaded)
+		if bl != nil {
+			bl.Reload(dnsURLs, allowURLs, extra, allow) // uses defaults when dnsURLs is empty
+		}
+		if blocker != nil && ipBlockEnabled {
+			if prefixes := filter.LoadIPBlocklists(ipURLs); len(prefixes) > 0 {
+				if err := blocker.BlockCIDRs(prefixes); err != nil {
+					log.Fatalf("nft block CIDRs: %v", err)
+				}
+			}
+		}
+		logTotals(bl, blocker, len(seedIPs))
+	}()
+	if *steerOn {
+		// Steered clients get the full lists from the start. Until then they
+		// use the router directly, so waiting costs them nothing.
+		<-listsLoaded
+	}
 
 	// Periodically re-fetch both blocklist layers so daily-updated lists stay
 	// current without a restart.

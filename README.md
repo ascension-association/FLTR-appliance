@@ -413,6 +413,11 @@ doesn't create a loop.
   and keeps the IP, VPN and encrypted-DNS blocking, since those rules see
   bridged traffic too. Unplugging a cable switches back to ARP steering
   within about 30 seconds.
+- **Changing modes**: network protection's resolver answers DNS again
+  within seconds of the restart. Its blocklists take a minute or more to
+  download, and until then it blocks only its built-in domains and
+  `-block`, still with safe search. In ARP steering, it waits for the
+  blocklists before it steers anyone, so devices use the router meanwhile.
 
 Don't connect the box to the ISP's modem. The box needs its own address,
 and devices behind the router all reach the modem from one address, so
@@ -636,6 +641,12 @@ once (without it, FLTR must refuse to start):
 sudo modprobe br_netfilter
 NETNS_TOPO=bridge scripts/netns-test.sh bin/fltr-amd64
 ```
+
+`scripts/netns-dns-test.sh` checks DNS in bridge mode. It starts network
+protection with a blocklist server that never answers, and the client's DNS
+to the router must get FLTR's answers throughout, both while that download
+times out (a minute) and after. It needs `br_netfilter` and `nc` (OpenBSD
+netcat).
 
 `scripts/netns-allowance-test.sh` tests daily allowances the same way: a 4
 second allowance, measured every second, cuts off TCP and QUIC streams, and the
